@@ -32,12 +32,23 @@ EOF
 
 make defconfig
 
-grep -Fxq 'CONFIG_TARGET_qualcommbe=y' .config
-grep -Fxq 'CONFIG_TARGET_qualcommbe_ipq95xx=y' .config
-grep -Fxq 'CONFIG_TARGET_qualcommbe_ipq95xx_DEVICE_xiaomi_be7000=y' .config
-grep -Fxq 'CONFIG_CPU_TYPE="cortex-a73"' .config
-grep -Fxq "CONFIG_VERSION_NUMBER=\"${VERSION}\"" .config
-grep -Fxq "CONFIG_VERSION_CODE=\"${VERSION_CODE}\"" .config
+require_cfg() {
+  local expected="$1"
+  if ! grep -Fxq -- "$expected" .config; then
+    echo "Missing expected .config line: $expected" >&2
+    grep -E '^(CONFIG_TARGET_qualcommbe|CONFIG_CPU_TYPE|CONFIG_IMAGEOPT|CONFIG_VERSION)' .config >&2 || true
+    exit 1
+  fi
+}
+
+require_cfg 'CONFIG_TARGET_qualcommbe=y'
+require_cfg 'CONFIG_TARGET_qualcommbe_ipq95xx=y'
+require_cfg 'CONFIG_TARGET_qualcommbe_ipq95xx_DEVICE_xiaomi_be7000=y'
+require_cfg 'CONFIG_CPU_TYPE="cortex-a73"'
+require_cfg 'CONFIG_IMAGEOPT=y'
+require_cfg 'CONFIG_VERSIONOPT=y'
+require_cfg "CONFIG_VERSION_NUMBER=\"${VERSION}\""
+require_cfg "CONFIG_VERSION_CODE=\"${VERSION_CODE}\""
 
 for forbidden in \
   default-settings \
@@ -73,8 +84,9 @@ make -j"$JOBS" || make -j1 V=s
 ROOTFS_DIR="build_dir/target-aarch64_cortex-a73_musl/root-qualcommbe"
 test -d "$ROOTFS_DIR"
 grep -Fxq "DISTRIB_RELEASE='${VERSION}'" "$ROOTFS_DIR/etc/openwrt_release"
-grep -Fxq "DISTRIB_REVISION='${VERSION_CODE}'" "$ROOTFS_DIR/etc/openwrt_release"
+grep -Fxq "DISTRIB_DESCRIPTION='OpenWrt ${VERSION} ${VERSION_CODE}'" "$ROOTFS_DIR/etc/openwrt_release"
 grep -Fxq "VERSION=\"${VERSION}\"" "$ROOTFS_DIR/usr/lib/os-release"
+grep -Fxq "OPENWRT_RELEASE=\"OpenWrt ${VERSION} ${VERSION_CODE}\"" "$ROOTFS_DIR/usr/lib/os-release"
 test -s "$ROOTFS_DIR/lib/firmware/ath11k/IPQ9574/hw1.0/board-2.bin"
 test -s "$ROOTFS_DIR/lib/firmware/ath12k/QCN9274/hw2.0/board-2.bin"
 test -s "$ROOTFS_DIR/etc/config/system"

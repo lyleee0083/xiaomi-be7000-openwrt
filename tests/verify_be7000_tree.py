@@ -152,6 +152,7 @@ def verify_dts_and_defaults() -> None:
 
     defconfig = read_lf_text("configs/xiaomi_be7000_defconfig")
     require("CONFIG_TARGET_qualcommbe_ipq95xx_DEVICE_xiaomi_be7000=y" in defconfig, "defconfig missing BE7000 target")
+    require("CONFIG_IMAGEOPT=y" in defconfig and "CONFIG_VERSIONOPT=y" in defconfig, "defconfig must enable IMAGEOPT and VERSIONOPT")
     require("CONFIG_PACKAGE_luci-theme-bootstrap=y" in defconfig, "defconfig must enable Bootstrap theme")
     for pkg in FORBIDDEN_BLOAT_PACKAGES:
         require(f"CONFIG_PACKAGE_{pkg}=y" not in defconfig, f"defconfig must not enable {pkg}")
