@@ -1,0 +1,246 @@
+name: Build Xiaomi BE7000 OpenWrt
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify BE7000 OpenWrt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      release_needed: ${{ steps.meta.outputs.release_needed }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run offline tree, DTS, MAC, and CPUFreq checks
+        run: python3 tests/verify_be7000_tree.py
+
+      - name: Install Kconfig and feed check dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            bison build-essential bzip2 file flex gawk gettext git jq libncurses-dev \
+            libssl-dev patch perl python3 python3-setuptools rsync unzip wget xz-utils \
+            zlib1g-dev zstd
+
+      - name: Verify feeds and Xiaomi BE7000 defconfig expansion
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ./scripts/build-be7000.sh --prepare-config
+
+      - name: Check release publication state
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(tr -d ' \t\r\n' < VERSION)"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            printf 'release_needed=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "${{ github.event_name }}" != "push" || "${{ github.ref }}" != "refs/heads/main" ]]; then
+            printf 'release_needed=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="openwrt-xiaomi-be7000-${version}"
+          factory="openwrt-xiaomi-be7000-${version}-squashfs-factory.ubi"
+          sysupgrade="openwrt-xiaomi-be7000-${version}-squashfs-sysupgrade.bin"
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          existing="$(jq -c --arg tag "$tag" '[.[][] | select(.tag_name == $tag)] | first // empty' <<< "$releases")"
+          if [[ -n "$existing" ]] && jq -e --arg f "$factory" --arg s "$sysupgrade" '
+            .draft == false and .prerelease == false and
+            ([.assets[] | select(.state == "uploaded" and .size > 0) | .name] | sort) ==
+              ([$f, $s, "SHA256SUMS.txt"] | sort)
+          ' <<< "$existing" >/dev/null; then
+            echo "Release $tag is already published; skipping duplicate full image build."
+            printf 'release_needed=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'release_needed=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build BE7000 Firmware Images
+    needs: verify
+    if: >-
+      github.repository == 'lyleee0083/xiaomi-be7000-openwrt' &&
+      github.ref == 'refs/heads/main' &&
+      needs.verify.outputs.release_needed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      version: ${{ needs.verify.outputs.version }}
+      factory_asset: openwrt-xiaomi-be7000-${{ needs.verify.outputs.version }}-squashfs-factory.ubi
+      sysupgrade_asset: openwrt-xiaomi-be7000-${{ needs.verify.outputs.version }}-squashfs-sysupgrade.bin
+    steps:
+      - name: Reclaim runner disk space for OpenWrt build
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af || true
+          df -h
+
+      - name: Install OpenWrt build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar file flex gawk \
+            gettext git gperf haveged help2man intltool jq libelf-dev libfuse-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev \
+            libpython3-dev libreadline-dev libssl-dev libtool llvm lrzsz msmtp ninja-build \
+            p7zip p7zip-full patch perl pkgconf python3 python3-pyelftools python3-setuptools \
+            qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs unzip \
+            vim wget xmlto xxd xz-utils zlib1g-dev zstd
+
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Update feeds and build Xiaomi BE7000 firmware
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ./scripts/build-be7000.sh
+
+      - name: Upload factory UBI deliverable
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: release/openwrt-xiaomi-be7000-${{ needs.verify.outputs.version }}-squashfs-factory.ubi
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload sysupgrade deliverable
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: release/openwrt-xiaomi-be7000-${{ needs.verify.outputs.version }}-squashfs-sysupgrade.bin
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: release/SHA256SUMS.txt
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: >-
+      github.repository == 'lyleee0083/xiaomi-be7000-openwrt' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: publish-releases
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download factory UBI deliverable
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.factory_asset }}
+          path: ${{ runner.temp }}/release-files
+
+      - name: Download sysupgrade deliverable
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.sysupgrade_asset }}
+          path: ${{ runner.temp }}/release-files
+
+      - name: Download checksums
+        uses: actions/download-artifact@v8
+        with:
+          name: SHA256SUMS.txt
+          path: ${{ runner.temp }}/release-files
+
+      - name: Publish verified build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          FACTORY: ${{ needs.build.outputs.factory_asset }}
+          SYSUPGRADE: ${{ needs.build.outputs.sysupgrade_asset }}
+        run: |
+          set -euo pipefail
+          tag="openwrt-xiaomi-be7000-${VERSION}"
+          title="Xiaomi BE7000 OpenWrt ${VERSION}"
+          cd -- "$RUNNER_TEMP/release-files"
+          test -s "$FACTORY"
+          test -s "$SYSUPGRADE"
+          if [[ "$(cat SHA256SUMS.txt)" != "$(sha256sum -- "$FACTORY" "$SYSUPGRADE")" ]]; then
+            echo "The build assets do not match SHA256SUMS.txt." >&2
+            exit 1
+          fi
+
+          tag_commit=$(gh api graphql \
+            -f 'query=query($owner:String!,$name:String!,$ref:String!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{oid ... on Tag{target{oid}}}}}}' \
+            -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
+            -f ref="refs/tags/$tag" --jq '.data.repository.ref.target | .target.oid // .oid // empty')
+          if [[ -n "$tag_commit" && "$tag_commit" != "$GITHUB_SHA" ]]; then
+            echo "Tag $tag already points to a different commit ($tag_commit != $GITHUB_SHA)." >&2
+            exit 1
+          fi
+
+          releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
+          existing=$(jq -c --arg tag "$tag" '[.[][] | select(.tag_name == $tag)] | first // empty' <<< "$releases")
+          if [[ -n "$existing" ]] && jq -e '.draft == false' <<< "$existing" >/dev/null; then
+            test "$tag_commit" = "$GITHUB_SHA"
+            jq -e --arg f "$FACTORY" --arg s "$SYSUPGRADE" '
+              .prerelease == false and
+              ([.assets[] | select(.state == "uploaded" and .size > 0) | .name] | sort) ==
+                ([$f, $s, "SHA256SUMS.txt"] | sort)
+            ' <<< "$existing" >/dev/null
+            echo "Release $tag is already published for this commit."
+            exit 0
+          fi
+
+          latest_version=$(jq -r '.[][] | select(.draft == false and .prerelease == false) | .tag_name |
+            select(test("^openwrt-xiaomi-be7000-[0-9]+\\.[0-9]+\\.[0-9]+$")) |
+            ltrimstr("openwrt-xiaomi-be7000-")' <<< "$releases")
+          newest=$(printf '%s\n%s\n' "$VERSION" "$latest_version" | sort -V | tail -n 1)
+          release_flags=(--prerelease=false --latest=false)
+          if [[ "$newest" == "$VERSION" ]]; then release_flags=(--prerelease=false --latest); fi
+
+          notes="$RUNNER_TEMP/release-notes.md"
+          source_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
+          printf '%s\n' \
+            "GitHub Actions 已完成小米 BE7000（qualcommbe/ipq95xx，Linux 6.18，Cortex-A73）固件编译与离线校验。真机刷写、首次启动、恢复出厂与射频/性能需另行验收。[构建记录]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
+            "" \
+            "- 上游基线：[coolsnowwolf/lede@bc7f99dd](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)" \
+            "- 许可声明：[GPL-2.0]($source_url/COPYING) · [LICENSES]($source_url/LICENSES) · [无线固件声明]($source_url/package/firmware/ath-firmware-ddwrt/src/ath12k/QCN9274/hw1.0/Notice.txt)" > "$notes"
+
+          if [[ -n "$existing" ]]; then
+            test "$(jq -r '.target_commitish' <<< "$existing")" = "$GITHUB_SHA"
+            gh release upload "$tag" "$FACTORY" "$SYSUPGRADE" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --title "$title" --notes-file "$notes" "${release_flags[@]}"
+          else
+            gh release create "$tag" "$FACTORY" "$SYSUPGRADE" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "$title" --notes-file "$notes" "${release_flags[@]}"
+          fi

@@ -20,6 +20,42 @@ uci_apply_defaults() {
 	rm -f $applied
 }
 
+be7000_select_schedutil() {
+	local root policy name available current found
+	root="${1:-/sys/devices/system/cpu/cpufreq}"
+	found=0
+	for policy in "$root"/policy*; do
+		[ -d "$policy" ] || continue
+		name=${policy##*/}
+		case "$name" in policy[0-9]*) ;; *) continue ;; esac
+		case "${name#policy}" in ''|*[!0-9]*) continue ;; esac
+		found=1
+		[ -r "$policy/scaling_available_governors" ] || {
+			logger -t be7000-cpufreq "ERROR $name has no readable scaling_available_governors"
+			continue
+		}
+		available=$(cat "$policy/scaling_available_governors" 2>/dev/null) || {
+			logger -t be7000-cpufreq "ERROR $name governor inventory read failed"
+			continue
+		}
+		case " $available " in *" schedutil "*) ;; *) continue ;; esac
+		current=$(cat "$policy/scaling_governor" 2>/dev/null) || current=
+		if [ "$current" != schedutil ]; then
+			if ! printf 'schedutil\n' > "$policy/scaling_governor"; then
+				logger -t be7000-cpufreq "ERROR $name rejected schedutil write"
+				continue
+			fi
+		fi
+		current=$(cat "$policy/scaling_governor" 2>/dev/null) || current=
+		if [ "$current" = schedutil ]; then
+			logger -t be7000-cpufreq "INFO $name selected advertised schedutil; native policy limits unchanged"
+		else
+			logger -t be7000-cpufreq "ERROR $name schedutil readback failed"
+		fi
+	done
+	[ "$found" -eq 1 ] || logger -t be7000-cpufreq 'INFO no numeric CPU frequency policies found yet; no governor write attempted'
+}
+
 boot() {
 	[ -f /proc/mounts ] || /sbin/mount_root
 	[ -f /proc/jffs2_bbc ] && echo "S" > /proc/jffs2_bbc
@@ -45,6 +81,9 @@ boot() {
 	[ "$FAILSAFE" = "true" ] && touch /tmp/.failsafe
 
 	/sbin/kmodloader
+	if [ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = "xiaomi,be7000" ]; then
+		be7000_select_schedutil
+	fi
 
 	[ ! -f /etc/config/wireless ] && {
 		# compat for bcm47xx and mvebu

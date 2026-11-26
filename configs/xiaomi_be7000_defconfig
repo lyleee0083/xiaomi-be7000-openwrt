@@ -1,0 +1,33 @@
+CONFIG_TARGET_qualcommbe=y
+CONFIG_TARGET_qualcommbe_ipq95xx=y
+CONFIG_TARGET_qualcommbe_ipq95xx_DEVICE_xiaomi_be7000=y
+CONFIG_DEVEL=y
+CONFIG_VERSIONOPT=y
+CONFIG_VERSION_DIST="OpenWrt"
+CONFIG_VERSION_PRODUCT="Xiaomi BE7000"
+CONFIG_VERSION_HOME_URL="https://github.com/lyleee0083/xiaomi-be7000-openwrt"
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-theme-bootstrap=y
+CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+CONFIG_PACKAGE_luci-proto-ipv6=y
+CONFIG_PACKAGE_zram-swap=y
+# CONFIG_PACKAGE_default-settings is not set
+# CONFIG_PACKAGE_luci-theme-design is not set
+# CONFIG_PACKAGE_luci-app-ssr-plus is not set
+# CONFIG_PACKAGE_luci-app-upnp is not set
+# CONFIG_PACKAGE_luci-app-ddns is not set
+# CONFIG_PACKAGE_luci-app-vsftpd is not set
+# CONFIG_PACKAGE_luci-app-samba4 is not set
+# CONFIG_PACKAGE_luci-app-vlmcsd is not set
+# CONFIG_PACKAGE_luci-app-zerotier is not set
+# CONFIG_PACKAGE_luci-app-turboacc is not set
+# CONFIG_PACKAGE_luci-app-wol is not set
+# CONFIG_PACKAGE_luci-app-autoreboot is not set
+# CONFIG_PACKAGE_luci-app-filetransfer is not set
+# CONFIG_PACKAGE_luci-app-accesscontrol is not set
+# CONFIG_PACKAGE_luci-app-arpbind is not set
+# CONFIG_PACKAGE_luci-app-nlbwmon is not set
+# CONFIG_PACKAGE_wpad-basic-mbedtls is not set
+CONFIG_PACKAGE_wpad-basic-openssl=y
