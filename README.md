@@ -1,239 +1,81 @@
-# 欢迎来到 Lean 的 LEDE 源码仓库
+# 小米 BE7000 OpenWrt
 
-为国产龙芯 LOONGSON SoC loongarch64 / 飞腾 Phytium 腾锐 D2000 系列架构添加支持
+面向小米 BE7000（Qualcomm IPQ9554 / Cortex-A73）的专用 OpenWrt 固件源码仓库，基于 [coolsnowwolf/lede](https://github.com/coolsnowwolf/lede) 构建，导入基线提交为 [`bc7f99dd`](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)。仓库仅保留 `qualcommbe/ipq95xx` 下的 `xiaomi_be7000` 目标及其构建依赖。
 
-I18N: [English](README_EN.md) | [简体中文](README.md) | [日本語](README_JA.md)
+## 功能
 
-## 官方讨论群
+- **单一机型与架构优化**：移除无关平台与其他开发板定义，针对 IPQ9554 四核 Cortex-A73（`-mcpu=cortex-a73`）与 Linux 6.18 构建 `factory.ubi` 和 `sysupgrade.bin` 镜像。
+- **开源网络与无线驱动栈**：采用 `kmod-qcom-ppe` 有线/PPE 卸载、`kmod-ath11k-ahb`（2.4G IPQ9574）与 `kmod-ath12k`（5G PCIe QCN9274），并在 `ipq-wifi-xiaomi_be7000` 中封装两颗射频的专属 `board-2.bin`。
+- **原厂 ART 布局与空槽 MAC 回退**：按小米 BE7000 原厂 `0:art` 分区映射 `wan`（`0x0`）、`lan1`（`0x6`）、`lan2`（`0xc`）、`lan3`（`0x12`）以及 2.4G（`0x100e`、`0x1000`/`0x20000`）和 5G（`0x65010`、`0x65000`/`0x2d000`）。当原厂第四个有线槽位（`0x12`）为全 `FF` 或发生地址冲突时，由 [`be7000-mac.sh`](target/linux/qualcommbe/ipq95xx/base-files/lib/functions/be7000-mac.sh) 确定性派生本地管理单播 MAC。
+- **纯净精简默认配置**：仅包含 Bootstrap 主题中文 LuCI、FW4/nftables、PPPoE、IPv6、Dropbear SSH 与 `zram-swap`，不包含代理、VPN、容器、NAS、FTP、UPnP 或 KMS 等无关插件。
 
-如有技术问题需要讨论或者交流，欢迎加入以下群：
+## 快速开始
 
-1. QQ 讨论群：Op 固件技术研究群，号码 891659613，加群链接：[点击加入](https://qm.qq.com/q/IMa6Yf2SgC "Op固件技术研究群")
-2. TG 讨论群：OP 编译官方大群，加群链接：[点击加入](https://t.me/JhKgAA6Hx1 "OP 编译官方大群")
+从 [GitHub Releases](https://github.com/lyleee0083/xiaomi-be7000-openwrt/releases) 下载对应版本的固件文件与 `SHA256SUMS.txt`。刷写前请先备份设备原厂分区（尤其是 `0:ART` 与 `bdata`），并校验文件摘要：
 
-## 瑞莎网络计算 - 轻松打造你的网络边缘计算系统
+```sh
+sha256sum -c SHA256SUMS.txt
+```
 
-![radxa-netcompute-features](./doc/radxa.png)
+- **U-Boot Webfailsafe 首次刷入**：刷入 `openwrt-xiaomi-be7000-<版本>-squashfs-factory.ubi`（可配合 [xiaomi-be7000-uboot](https://github.com/lyleee0083/xiaomi-be7000-uboot) 使用）。
+- **OpenWrt 系统内升级**：在 LuCI 系统升级页面或通过 `sysupgrade` 使用 `openwrt-xiaomi-be7000-<版本>-squashfs-sysupgrade.bin`。
 
-瑞莎网络计算系列覆盖从入门到高性能的边缘网关场景，从千兆到 2.5G，从四核到六核，全系列基于瑞芯微高可靠处理器，低功耗、稳定运行，适合 7×24 小时网络服务。
+首次启动默认管理地址为 `http://192.168.1.1`，默认无管理员密码，建议首次登录后立即设置密码。
 
-| 产品型号  | E20C                    | E24C                    | E25                             | E52C                              | E54C                      |
-| -------- | ----------------------- | ----------------------- | ------------------------------- | --------------------------------- | ------------------------- |
-| 处理器    | 瑞芯微RK3528A（四核）     | 瑞芯微 RK3528A（四核）     | 瑞芯微 RK3568（四核）             | 瑞芯微 RK3582（六核）               | 瑞芯微 RK3582（六核）        |
-| 以太网    | 2x 千兆以太网            | 4x 千兆以太网              | 2x 2.5G 以太网                  | 2x 2.5G 以太网                     | 4x 千兆以太网               |
-| 适用场景  | 入门级软路由 / 家用网关    | 多口家庭路由 / IoT 网关     | 高速 2.5G 家庭 / 小型企业软路由    | 高性能 2.5G 路由 / 边缘计算 / VPN    | 多口网络控制器 / 企业网关     |
+## 配置
 
-- 多网口设计，为网络计算而生
-  - 提供 2 / 4 网口、千兆 / 2.5G 多种组合，灵活适配家用、宿舍、小型企业与 IoT 网络。
-- 一板多用，系统自由切换
-  - 支持 OpenWrt、Debian、Armbian 等多种系统，可应用于网关、轻量服务器或开发板等领域。
-- 稳定可靠，适合全天候运行
-  - 优秀的金属外壳散热设计 + 瑞芯微平台的低功耗特性，确保长时间满载仍能保持稳定。
-- 开发生态完善，轻松扩展功能
-  - 提供配套文档、源码与社区支持，方便开发者进行二次开发、插件扩展与自定义功能。
+静态出厂默认与运行策略直接集成在源码树中：
 
-## 了解更多
+- **系统与时间**：[`etc/config/system`](target/linux/qualcommbe/ipq95xx/base-files/etc/config/system) 默认主机名为 `BE7000`，时区为 `CST-8`（`Asia/Shanghai`），NTP 客户端仅启用 `cn.pool.ntp.org`（关闭本地 NTP 服务端与 DHCP NTP），ZRAM 使用 `lzo`（4 流）。
+- **指示灯策略**：机身 5 颗 GPIO 指示灯（`white:network`、`amber:network`、`white:system`、`amber:system`、`white:aiot`）在启动完成后默认关闭（`default=0`、`trigger=none`）；4 个 QCA8084 网口绿色链路灯保持 `netdev` 状态指示。
+- **网络、连接跟踪与调频**：[`sysctl-nf-conntrack.conf`](package/kernel/linux/files/sysctl-nf-conntrack.conf) 设置 `net.netfilter.nf_conntrack_max=65535`、`buckets=16384`；[`sysctl-tcp-bbr.conf`](package/kernel/linux/files/sysctl-tcp-bbr.conf) 不强制覆盖防火墙保存的 `tcpcca` 拥塞控制选择；[`etc/init.d/boot`](package/base-files/files/etc/init.d/boot) 在模块加载后对支持 `schedutil` 的数字 CPUFreq policy 自动启用并回读校验 `schedutil`，保留内核原生频率边界。
+- **构建配置**：[`configs/xiaomi_be7000_defconfig`](configs/xiaomi_be7000_defconfig) 为唯一维护的精简构建配置种子。
 
-- [官方文档](https://docs.radxa.com/e/e20c)
+## 构建与测试
 
-- [官网介绍](https://radxa.com/products#NetworkComputer)
+### 离线结构与行为校验
 
-- [瑞莎京东店铺](https://mall.jd.com/view_search-3967032-31323445-99-1-20-1.html)
+在任意安装了 Python 3.10+ 的环境中运行离线检查（Linux 环境同时执行 Shell 语法及 MAC/CPUFreq 行为测试）：
 
-- [瑞莎淘宝店铺](https://radxa.taobao.com/category-1797203497.htm?spm=a1z10.1-c-s.0.0.eaee3a483AhQEE)
+```sh
+python3 tests/verify_be7000_tree.py
+```
 
-## 注意
+### 固件构建（Ubuntu 24.04 x86_64）
 
-1. **不要用 root 用户进行编译**
-2. 国内用户编译前最好准备好梯子
-3. 默认登陆IP 192.168.1.1 密码 password
+准备好 OpenWrt 构建依赖后，执行 [`scripts/build-be7000.sh`](scripts/build-be7000.sh) 更新 feeds、生成并校验 `.config`、编译固件并输出带摘要清单的交付文件：
 
-## 编译命令
-
-1. 首先装好 Linux 系统，推荐 Debian 或 Ubuntu LTS 22/24
-
-2. 安装编译依赖
-
-   ```bash
-   sudo apt update -y
-   sudo apt full-upgrade -y
-   sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-   bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext \
-   genisoimage git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev \
-   libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev \
-   libreadline-dev libssl-dev libtool llvm lrzsz libnsl-dev ninja-build p7zip p7zip-full patch pkgconf \
-   python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion \
-   swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd xz-utils zlib1g-dev
-   ```
-
-3. 下载源代码，更新 feeds 并选择配置
-
-   ```bash
-   git clone https://github.com/coolsnowwolf/lede
-   cd lede
-   ./scripts/feeds update -a
-   ./scripts/feeds install -a
-   make menuconfig
-   ```
-
-4. 下载 dl 库，编译固件
-（-j 后面是线程数，第一次编译推荐用单线程）
-
-   ```bash
-   make download -j8
-   make V=s -j1
-   ```
-
-本套代码保证肯定可以编译成功。里面包括了 R24 所有源代码，包括 IPK 的。
-
-你可以自由使用，但源码编译二次发布请注明我的 GitHub 仓库链接。谢谢合作！
-
-二次编译：
-
-```bash
-cd lede
-git pull
+```sh
 ./scripts/feeds update -a
 ./scripts/feeds install -a
-make defconfig
-make download -j8
-make V=s -j$(nproc)
+./scripts/build-be7000.sh
 ```
 
-如果需要重新配置：
+仅验证配置展开而不执行完整编译时，可运行 `./scripts/build-be7000.sh --prepare-config`。构建产物直接输出到 `release/` 目录。
 
-```bash
-rm -rf .config
-make menuconfig
-make V=s -j$(nproc)
-```
+## 仓库结构
 
-编译完成后输出路径：bin/targets
+| 路径 | 用途 |
+| --- | --- |
+| [`VERSION`](VERSION) | 统一发布版本号，同步写入固件系统信息、交付文件名与 Release 标签 |
+| [`configs/xiaomi_be7000_defconfig`](configs/xiaomi_be7000_defconfig) | 小米 BE7000 精简固件配置种子 |
+| [`scripts/build-be7000.sh`](scripts/build-be7000.sh) | 配置生成、完整固件构建、版本一致性校验及摘要生成入口 |
+| [`target/linux/qualcommbe/`](target/linux/qualcommbe) | Linux 6.18 内核补丁、[`ipq9554-be7000.dts`](target/linux/qualcommbe/dts/ipq9554-be7000.dts) 设备树、镜像规则与板级默认文件 |
+| [`package/firmware/ipq-wifi/`](package/firmware/ipq-wifi) | BE7000 的 IPQ9574 与 QCN9274 `board-2.bin` 覆盖包 |
+| [`tests/verify_be7000_tree.py`](tests/verify_be7000_tree.py) | 仓库裁剪范围、设备树、MAC 派生、CPUFreq 与文档一致性检查 |
+| [`.github/workflows/build-be7000.yml`](.github/workflows/build-be7000.yml) | Pull Request 快速门禁检查、固件自动编译与 GitHub Release 发布工作流 |
 
-### 使用 WSL/WSL2 进行编译
+## 版本发布
 
-由于 WSL 的 PATH 中包含带有空格的 Windows 路径，有可能会导致编译失败，请在 `make` 前面加上：
+工作流通过校验和完整编译后，根据 [`VERSION`](VERSION) 在 [Releases](https://github.com/lyleee0083/xiaomi-be7000-openwrt/releases) 发布同版本标签 `openwrt-xiaomi-be7000-<版本>`，并直接提供以下已核验文件：
 
-```bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-```
+- `openwrt-xiaomi-be7000-<版本>-squashfs-factory.ubi`
+- `openwrt-xiaomi-be7000-<版本>-squashfs-sysupgrade.bin`
+- `SHA256SUMS.txt`
 
-由于默认情况下，装载到 WSL 发行版的 NTFS 格式的驱动器将不区分大小写，因此大概率在 WSL/WSL2 的编译检查中会返回以下错误：
+离线测试与 GitHub Actions 构建成功仅代表源码、镜像封装及受控脚本逻辑通过检查；BE7000 实机启动、恢复出厂、射频表现与长期运行稳定性需另行在硬件上验收。
 
-```txt
-Build dependency: OpenWrt can only be built on a case-sensitive filesystem
-```
+## 许可证
 
-一个比较简洁的解决方法是，在 `git clone` 前先创建 Repository 目录，并为其启用大小写敏感：
-
-```powershell
-# 以管理员身份打开终端
-PS > fsutil.exe file setCaseSensitiveInfo <your_local_lede_path> enable
-# 将本项目 git clone 到开启了大小写敏感的目录 <your_local_lede_path> 中
-PS > git clone https://github.com/coolsnowwolf/lede <your_local_lede_path>
-```
-
-> 对已经 `git clone` 完成的项目目录执行 `fsutil.exe` 命令无法生效，大小写敏感只对新增的文件变更有效。
-
-### macOS 原生系统进行编译
-
-1. 安装 macOS Command Line Tools（无需安装完整 Xcode）：
-
-   ```bash
-   xcode-select --install
-   ```
-
-   如果系统已安装 Xcode，可跳过此步骤。
-
-2. 安装 Homebrew：
-
-   ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   ```
-
-3. 使用 Homebrew 安装工具链、依赖与基础软件包：
-
-   ```bash
-   brew install coreutils diffutils findutils gawk gnu-getopt gnu-tar gnu-sed grep make \
-     ncurses pkgconf wget quilt xz bash git rsync gpatch python3 python-setuptools go swig
-   ```
-
-   宿主编译器使用 Command Line Tools 提供的 Clang，目标工具链由构建系统生成。
-   Apple Silicon 上编译 Go 软件包时需要已安装的 Go 进行自举，构建系统会自动从 `PATH` 中查找。
-   `python-setuptools` 为仍使用 `distutils` 的软件包构建脚本提供兼容模块。
-   `swig` 用于 U-Boot 等组件的 Python FDT 绑定生成。
-   为 U-Boot 的 binman 镜像打包工具和 STM32 的 OP-TEE 构建准备 Python 依赖：
-
-   ```bash
-   python3 -m venv --system-site-packages ~/.venvs/lede-build
-   source ~/.venvs/lede-build/bin/activate
-   python3 -m pip install pyelftools cryptography
-   export PYTHONPATH="$(python3 -c 'import site; print(site.getsitepackages()[0])')${PYTHONPATH:+:$PYTHONPATH}"
-   ```
-
-   每次新开终端编译前需重新激活该环境并执行上述 `export`，使构建系统缓存的 Python 命令也能找到模块。
-   `--system-site-packages` 保留 Homebrew setuptools 的可用性。
-
-4. 准备**区分大小写**的构建文件系统。macOS 默认的 APFS 通常不区分大小写，不能直接在默认的家目录中编译。
-   在“磁盘工具”中向现有 APFS 容器添加一个“APFS（区分大小写）”卷，例如 `LEDE-build`，然后在 `/Volumes/LEDE-build` 中存放源码和构建目录。
-   建议至少保留 100 GB 可用空间；多个 target 的构建回归需要更多空间。APFS 卷默认共享容器空间，可不设置配额上限。
-
-5. 进入 Bash，配置 GNU 工具路径（通过 Homebrew 前缀同时兼容 Intel 和 Apple Silicon）：
-
-   ```bash
-   # Intel Mac 的 Homebrew 通常位于 /usr/local，Apple Silicon 通常位于 /opt/homebrew
-   eval "$(/opt/homebrew/bin/brew shellenv)" # Intel Mac 请改为 /usr/local/bin/brew
-   bash
-   export BREW_PREFIX="$(brew --prefix)"
-   for tool in coreutils diffutils findutils gnu-tar gnu-sed grep make; do
-     export PATH="$BREW_PREFIX/opt/$tool/libexec/gnubin:$PATH"
-   done
-   export PATH="$BREW_PREFIX/opt/gnu-getopt/bin:$PATH"
-   umask 022
-   ```
-
-   每次新开终端编译前需重新加载以上环境；也可将 `export` 和循环部分保存到 `~/.bashrc`，进入 Bash 后执行 `source ~/.bashrc`。
-   macOS 默认的 Zsh 不会自动加载 `~/.bashrc`。
-
-6. 在上述大小写敏感卷内获取源码，按本文的 feeds 和配置步骤进行编译；使用普通用户执行，不要使用 `sudo make`。
-   例如选择 `Target System: x86`、`Subtarget: x86_64` 后：
-
-   ```bash
-   make defconfig
-   make download -j8
-   make V=s -j$(nproc)
-   # 如果失败，使用单线程详细输出定位首个错误
-   make -j1 V=s
-   ```
-
-   长时间或通过 SSH 编译时，可使用 `caffeinate -i make V=s -j$(nproc)`，在构建任务运行期间防止 Mac 因空闲而睡眠。
-
-   这是 macOS 原生交叉编译，Apple Silicon 主机也可构建 x86_64 固件，无需虚拟机或容器。
-   Airoha AN7581/AN7583 的 BL2 构建会自动下载经过 SHA256 校验的 Arm 工具链；Apple Silicon 使用原生 macOS ARM64 版本。Intel Mac 需额外执行 `brew install arm-none-eabi-gcc`。
-
-   mvebu 的 Cortex-A53 / Cortex-A72 SD 卡镜像默认使用 32 MiB boot 分区。复用旧配置时，请在 `Image Options` 中将 `Kernel partition size (in MiB)` 设为至少 `32`，为内核、设备树和文件系统元数据留出空间。
-
-   UML（User Mode Linux）目标仅支持 Linux x86_64 主机构建，不适用于本节的 macOS 原生构建流程。
-
-   小容量设备仅支持 ROM 至少 8 MiB 的机型；4 MiB 及以下不再纳入支持范围，对应的 ath79、ramips 设备 profile 已屏蔽。Lantiq 固件分区不足 4 MiB 的设备 profile 也已屏蔽；`ase`、`xway_legacy` 已从子目标选择中移除。不会通过扩大分区绕过设备容量限制。
-
-   8 MiB 设备需在 `make menuconfig` 中裁减可选应用：关闭 SSR Plus 及其专用依赖、DDNS、UPnP、FTP、KMS 和流量统计等，保留基本 LuCI 管理、防火墙、SSH 和设备驱动；镜像仍超限时，可将 Design 主题替换为体积较小的 Bootstrap 主题。TLS 可选用 mbedTLS，避免同时引入 OpenSSL；裁减后仍须确认所选设备的正常 sysupgrade 镜像生成成功且未超过原分区容量。
-
-   对于仍然超限的 8 MiB 设备（如部分 Lantiq xway），还需按用途裁减可选网络模块，以及内核调试、跟踪、cgroups、MPTCP、swap 和 core dump 等功能，并启用内核体积优化。保留设备所需的 DSL、无线、IPv6、防火墙和进程隔离功能；每次修改后重新完整编译并检查正常升级镜像，不能仅凭 initramfs 镜像或 `make` 退出码判断通过。
-
-## 特别提示
-
-1. 源代码中绝不含任何后门和可以监控或者劫持你的 HTTPS 的闭源软件， SSL 安全是互联网最后的壁垒，安全干净才是固件应该做到的。
-
-2. 想学习 OpenWrt 开发，但是摸不着门道？自学没毅力？基础太差？怕太难学不会？跟着佐大学 OpenWrt 开发入门培训班助你能学有所成
-报名地址：[点击报名](http://forgotfun.org/2018/04/openwrt-training-2018.html "报名")
-
-3. QCA IPQ60xx 开源仓库地址：<https://github.com/coolsnowwolf/openwrt-gl-ax1800>
-
-4. 存档版本仓库地址：<https://github.com/coolsnowwolf/openwrt>
-
-## 捐贈
-
-如果你觉得此项目对你有帮助，可以捐助我们，以鼓励项目能持续发展，更加完善
-
- ![star](doc/star.png)
+- OpenWrt / LEDE 主体构建系统与源码遵循 [GNU GPL v2](COPYING)，补充许可证文本见 [`LICENSES/`](LICENSES)。
+- 上游源码派生自 [coolsnowwolf/lede](https://github.com/coolsnowwolf/lede)（基线提交 [`bc7f99dd`](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)）；无线二进制固件包拉取声明与专有许可参见 [`package/firmware/ath-firmware-ddwrt/Makefile`](package/firmware/ath-firmware-ddwrt/Makefile) 及 [`Notice.txt`](package/firmware/ath-firmware-ddwrt/src/ath12k/QCN9274/hw1.0/Notice.txt)。

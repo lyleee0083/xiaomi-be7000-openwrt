@@ -53,13 +53,10 @@ DEFAULT_PACKAGES.nas:=\
 	mdadm
 # For router targets
 DEFAULT_PACKAGES.router:=\
-	dnsmasq-full firewall4 nftables-json iptables ppp ppp-mod-pppoe odhcp6c odhcpd-ipv6only ip6tables libip6tc kmod-ipt-nat6 \
-	block-mount coremark kmod-nf-nathelper kmod-nf-nathelper-extra kmod-ipt-raw kmod-tun \
-	iptables-mod-tproxy iptables-mod-extra ipset ip-full default-settings luci luci-proto-ipv6 \
-	ddns-scripts_aliyun ddns-scripts_dnspod luci-app-ddns luci-app-upnp luci-app-autoreboot luci-theme-design \
-	luci-app-arpbind luci-app-filetransfer luci-app-vsftpd luci-app-ssr-plus luci-app-vlmcsd \
-	luci-app-accesscontrol luci-app-nlbwmon luci-app-turboacc luci-app-wol curl ca-certificates \
-	kmod-sched-core kmod-sched-bpf kmod-xdp-sockets-diag kmod-veth
+	dnsmasq-full firewall4 nftables-json ppp ppp-mod-pppoe odhcp6c odhcpd-ipv6only \
+	kmod-nf-nathelper kmod-nf-nathelper-extra \
+	ip-full luci luci-i18n-base-zh-cn luci-i18n-firewall-zh-cn luci-proto-ipv6 \
+	curl ca-certificates zram-swap
 
 ifneq ($(DUMP),)
   all: dumpinfo
@@ -252,6 +249,7 @@ ifeq ($(DUMP),1)
     CPU_TYPE ?= generic
     CPU_CFLAGS_generic = -mcpu=generic
     CPU_CFLAGS_cortex-a53 = -mcpu=cortex-a53
+    CPU_CFLAGS_cortex-a73 = -mcpu=cortex-a73
   endif
   ifeq ($(ARCH),arc)
     CPU_TYPE ?= arc700
