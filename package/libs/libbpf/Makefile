@@ -10,12 +10,17 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=libbpf
 PKG_VERSION:=1.7.0
 
-SR1010_UAPI_FIX:=$(if $(and $(filter y,$(CONFIG_TARGET_zte_zx279133)),\
-	$(filter y,$(CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010))),y)
-PKG_CONFIG_DEPENDS += CONFIG_TARGET_zte_zx279133 \
+ARM64_U128_UAPI_FIX:=$(if $(or $(and $(filter y,$(CONFIG_aarch64)),$(filter y,$(CONFIG_LINUX_7_3))),\
+	$(filter y,$(CONFIG_TARGET_qualcommbe)),\
+	$(and $(filter y,$(CONFIG_TARGET_zte_zx279133)),\
+	$(filter y,$(CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010)))),y)
+PKG_CONFIG_DEPENDS += CONFIG_aarch64 \
+	CONFIG_LINUX_7_3 \
+	CONFIG_TARGET_qualcommbe \
+	CONFIG_TARGET_zte_zx279133 \
 	CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010
 PKG_PREPARED_DEPENDS += $(PKG_CONFIG_DEPENDS)
-PKG_RELEASE:=$(if $(SR1010_UAPI_FIX),2,1)
+PKG_RELEASE:=$(if $(ARM64_U128_UAPI_FIX),2,1)
 
 PKG_SOURCE_URL:=https://github.com/libbpf/libbpf
 PKG_MIRROR_HASH:=c5ffaa91d22172cffb75439919876c1db8a75a82c5a2b8182db34f8867b8cab5
@@ -49,7 +54,7 @@ define Build/Patch
 endef
 endif
 
-ifneq ($(SR1010_UAPI_FIX),)
+ifneq ($(ARM64_U128_UAPI_FIX),)
 define Build/Prepare
 	$(call Build/Prepare/Default)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(CURDIR)/patches/sr1010,sr1010/)

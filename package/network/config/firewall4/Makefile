@@ -6,12 +6,14 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=firewall4
 
-SR1010_OFFLOAD_FIXES:=$(if $(and $(filter y,$(CONFIG_TARGET_zte_zx279133)),\
-	$(filter y,$(CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010))),y)
-PKG_CONFIG_DEPENDS += CONFIG_TARGET_zte_zx279133 \
+HW_OFFLOAD_FIXES:=$(if $(or $(filter y,$(CONFIG_TARGET_qualcommbe)),\
+	$(and $(filter y,$(CONFIG_TARGET_zte_zx279133)),\
+	$(filter y,$(CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010)))),y)
+PKG_CONFIG_DEPENDS += CONFIG_TARGET_qualcommbe \
+	CONFIG_TARGET_zte_zx279133 \
 	CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010
 PKG_PREPARED_DEPENDS += $(PKG_CONFIG_DEPENDS)
-PKG_RELEASE:=$(if $(SR1010_OFFLOAD_FIXES),8,7)
+PKG_RELEASE:=$(if $(HW_OFFLOAD_FIXES),9,7)
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/firewall4.git
@@ -39,7 +41,7 @@ define Build/Patch
 endef
 endif
 
-ifneq ($(SR1010_OFFLOAD_FIXES),)
+ifneq ($(HW_OFFLOAD_FIXES),)
 define Build/Prepare
 	$(call Build/Prepare/Default)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(CURDIR)/patches/sr1010,sr1010/)
@@ -71,6 +73,10 @@ endef
 
 define Package/firewall4/install
 	$(CP) -a $(PKG_BUILD_DIR)/root/* $(1)/
+ifneq ($(HW_OFFLOAD_FIXES),)
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
+	$(INSTALL_DATA) ./files/20-firewall-net.hotplug $(1)/etc/hotplug.d/net/20-firewall
+endif
 endef
 
 define Build/Compile

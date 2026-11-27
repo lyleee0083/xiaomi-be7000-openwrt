@@ -4,7 +4,7 @@ The Linux 7.3 ARM64 UAPI uses __u128 from linux/types.h in asm/ptrace.h.
 libbpf shadows linux/types.h with its private wrapper, which includes only
 asm/types.h and therefore misses these aliases. Mirror the UAPI typedefs
 when the compiler supports 128-bit integers, preserving 16-byte alignment.
-This compatibility patch is selected only for SR1010 builds.
+This compatibility patch is selected for Linux 7.3 ARM64 builds.
 
 --- a/include/linux/types.h
 +++ b/include/linux/types.h

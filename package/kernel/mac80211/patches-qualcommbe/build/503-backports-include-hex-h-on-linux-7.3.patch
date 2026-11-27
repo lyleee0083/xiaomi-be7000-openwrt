@@ -1,0 +1,15 @@
+Subject: [PATCH] wireless: include linux/hex.h for mac_pton on Linux 7.3
+
+Linux 7.3 no longer pulls <linux/hex.h> transitively via core headers
+in net/wireless/sysfs.c, which uses hex_to_bin() via mac_pton().
+
+--- a/net/wireless/sysfs.c
++++ b/net/wireless/sysfs.c
+@@ -9,6 +9,7 @@
+  */
+ 
+ #include <linux/device.h>
++#include <linux/hex.h>
+ #include <linux/module.h>
+ #include <linux/netdevice.h>
+ #include <linux/nl80211.h>

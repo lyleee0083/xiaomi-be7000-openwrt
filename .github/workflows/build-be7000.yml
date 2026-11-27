@@ -79,8 +79,7 @@ jobs:
     needs: verify
     if: >-
       github.repository == 'lyleee0083/xiaomi-be7000-openwrt' &&
-      github.ref == 'refs/heads/main' &&
-      needs.verify.outputs.release_needed == 'true'
+      (github.event_name == 'pull_request' || (github.ref == 'refs/heads/main' && needs.verify.outputs.release_needed == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     outputs:
@@ -190,7 +189,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="openwrt-xiaomi-be7000-${VERSION}"
-          title="Xiaomi BE7000 OpenWrt ${VERSION}"
+          title="小米 BE7000 OpenWrt ${VERSION}"
           cd -- "$RUNNER_TEMP/release-files"
           test -s "$FACTORY"
           test -s "$SYSUPGRADE"
@@ -229,12 +228,41 @@ jobs:
           if [[ "$newest" == "$VERSION" ]]; then release_flags=(--prerelease=false --latest); fi
 
           notes="$RUNNER_TEMP/release-notes.md"
-          source_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
-          printf '%s\n' \
-            "GitHub Actions 已完成小米 BE7000（qualcommbe/ipq95xx，Linux 6.18，Cortex-A73）固件编译与离线校验。真机刷写、首次启动、恢复出厂与射频/性能需另行验收。[构建记录]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
-            "" \
-            "- 上游基线：[coolsnowwolf/lede@bc7f99dd](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)" \
-            "- 许可声明：[GPL-2.0]($source_url/COPYING) · [LICENSES]($source_url/LICENSES) · [无线固件声明]($source_url/package/firmware/ath-firmware-ddwrt/src/ath12k/QCN9274/hw1.0/Notice.txt)" > "$notes"
+          source_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$tag"
+          cat > "$notes" <<EOF
+          小米 BE7000（Qualcomm IPQ9554 / Cortex-A73，\`qualcommbe/ipq95xx\`）专用 OpenWrt ${VERSION} 固件发布，基于 Linux 7.3（7.3.6）与开源无线/有线 PPE 硬件加速栈构建。
+
+          ## 主要变更
+
+          - 内核基线升级至 Linux 7.3.6（\`qualcommbe/ipq95xx\`，\`-mcpu=cortex-a73\`），精简默认软件包并保留原厂 \`0:art\` 校准偏移与空槽 MAC 回退逻辑。
+          - 启用有线 \`kmod-qcom-ppe\` 与无线硬件加速（2.4G IPQ9574 \`ath11k\` \`frame_mode=2\` + \`ppe_vp\` 双向卸载、5G QCN9274 \`ath12k\` 原生 \`PPE-DS\` Direct Switch 卸载，以及 \`firewall4\` 底层接口自动探测与无线热插拔同步）。
+
+          ## 下载与校验
+
+          本版本提供以下已核验固件资产与校验清单：
+
+          - \`${FACTORY}\`
+          - \`${SYSUPGRADE}\`
+          - \`SHA256SUMS.txt\`
+
+          刷写前请校验文件 SHA-256 摘要：
+
+          \`\`\`sh
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+
+          ## 安装与升级
+
+          - **U-Boot Webfailsafe 首次刷入**：刷写前先备份原厂 \`0:ART\` 与 \`bdata\` 分区，然后刷入 \`${FACTORY}\`。
+          - **OpenWrt 系统内升级**：在 LuCI 系统升级页面或通过 \`sysupgrade\` 使用 \`${SYSUPGRADE}\`。
+
+          ## 验证状态
+
+          - **GitHub Actions 构建与离线校验**：已通过（[工作流运行记录]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)，校验脚本 [\`verify_be7000_tree.py\`]($source_url/tests/verify_be7000_tree.py)，构建脚本 [\`build-be7000.sh\`]($source_url/scripts/build-be7000.sh)）。
+          - **真机硬件验收**：CI 通过仅代表源码编译、镜像封装与校验脚本通过检查；小米 BE7000 实机启动、恢复出厂、射频表现与长期运行稳定性需另行在硬件上验收。
+          - **上游与许可证**：派生自 [coolsnowwolf/lede](https://github.com/coolsnowwolf/lede)（基线提交 [\`bc7f99dd449ac05543d8bbbd42b21ddb33c70cae\`](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)）；主体遵循 [GNU GPL v2]($source_url/COPYING) 与 [\`LICENSES/\`]($source_url/LICENSES)，无线固件专有声明见 [\`Makefile\`]($source_url/package/firmware/ath-firmware-ddwrt/Makefile) 与 [\`Notice.txt\`]($source_url/package/firmware/ath-firmware-ddwrt/src/ath12k/QCN9274/hw1.0/Notice.txt)。
+          EOF
+          sed -i 's/^          //' "$notes"
 
           if [[ -n "$existing" ]]; then
             test "$(jq -r '.target_commitish' <<< "$existing")" = "$GITHUB_SHA"

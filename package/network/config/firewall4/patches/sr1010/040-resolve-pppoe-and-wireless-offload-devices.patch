@@ -1,0 +1,80 @@
+From: Xiaomi BE7000 OpenWrt
+Subject: [PATCH] fw4: resolve PPPoE parents, sysfs devtypes and wireless VAPs for offload
+
+Fall back to sysfs uevent DEVTYPE when netifd omits devtype or software
+flowtable fallback passes an empty devstatus map, resolve PPPoE L3 devices
+to their underlying parent interface, and include active wireless VAPs bound
+to zone networks so bridged AP/WDS interfaces always enter the flowtable.
+
+--- a/root/usr/share/ucode/fw4.uc
++++ b/root/usr/share/ucode/fw4.uc
+@@ -434,7 +434,23 @@
+ 		let devtype = (devstatus[devname]?.type == 'macvlan')
+ 			? 'macvlan' : devstatus[devname]?.devtype;
+ 
++		if (!devtype) {
++			let uevent = fs.readfile(`/sys/class/net/${devname}/uevent`);
++			let m = match(uevent || '', /(^|\n)DEVTYPE=([^\n]+)/);
++			devtype = m?.[2];
++		}
++
+ 		switch (devtype) {
++		case 'pppoe':
++			let parent = devstatus?.[devname]?.parent;
++
++			if (parent && parent != devname)
++				push(devs, ...resolve_lower_devices(devstatus, parent));
++			else
++				push(devs, devname);
++
++			break;
++
+ 		case 'vlan':
+ 		case 'bridge':
+ 		case 'macvlan':
+@@ -552,16 +568,44 @@
+ 
+ 		let devstatus = null;
+ 		let devices = null;
++		let wireless = null;
+ 		let bus = ubus.connect();
+ 
+ 		if (bus) {
+ 			devstatus = bus.call("network.device", "status") || {};
++			let interfaces = bus.call("network.interface", "dump")?.interface || [];
++
++			for (let iface in interfaces) {
++				if (iface.proto != "pppoe" || !iface.l3_device ||
++				    !iface.device || iface.l3_device == iface.device)
++					continue;
++
++				devstatus[iface.l3_device] ||= {};
++				devstatus[iface.l3_device].devtype = "pppoe";
++				devstatus[iface.l3_device].parent = iface.device;
++			}
++
++			wireless = bus.call("network.wireless", "status") || {};
+ 			bus.disconnect();
+ 		}
+ 
+-		for (let zone in this.zones())
++		for (let zone in this.zones()) {
+ 			for (let device in zone.related_physdevs)
+ 				push(devices ||= [], ...resolve_lower_devices(devstatus, device));
++
++			for (let radio, rdata in wireless) {
++				for (let vif in (rdata?.interfaces || [])) {
++					let ifname = vif?.ifname;
++
++					if (!ifname || !fs.access(`/sys/class/net/${ifname}`))
++						continue;
++
++					for (let net in to_array(vif?.config?.network))
++						if (filter(zone.network, e => !e.invert && e.device == net)[0])
++							push(devices ||= [], ...resolve_lower_devices(devstatus, ifname));
++				}
++			}
++		}
+ 
+ 		if (!devices)
+ 			return null;
