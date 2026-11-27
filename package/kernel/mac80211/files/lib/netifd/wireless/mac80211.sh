@@ -1107,6 +1107,12 @@ drv_mac80211_cleanup() {
 	hostapd_common_cleanup
 }
 
+mac80211_reload_firewall() {
+	[ -s /var/run/fw4.state ] && [ -x /usr/sbin/fw4 ] || return 0
+	/etc/init.d/firewall enabled 2>/dev/null || return 0
+	/usr/sbin/fw4 -q reload
+}
+
 drv_mac80211_setup() {
 	json_select config
 	json_get_vars \
@@ -1278,6 +1284,7 @@ drv_mac80211_setup() {
 	done
 	[ -n "$dropvap" ] && mac80211_vap_cleanup wpa_supplicant "$dropvap"
 	wireless_set_up
+	mac80211_reload_firewall
 }
 
 _list_phy_interfaces() {
@@ -1310,6 +1317,7 @@ drv_mac80211_teardown() {
 	[ -n "$state_key" ] || state_key="$(mac80211_get_state_key "$phy" "$radio")"
 	mac80211_interface_cleanup "$phy" "$state_key"
 	uci -q -P /var/state revert wireless._${state_key}
+	mac80211_reload_firewall
 }
 
 add_driver mac80211

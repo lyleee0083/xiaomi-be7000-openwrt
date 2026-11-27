@@ -51,8 +51,15 @@ def verify_scope() -> None:
     require(entries == ["Makefile", "generic", "qualcommbe"], f"Unexpected target/linux entries: {entries}")
 
     generic_entries = [p.name for p in (targets_dir / "generic").iterdir()]
-    bad_generic = [n for n in generic_entries if re.search(r"-(5\.\d+|6\.(?:1|6|12)|7\.\d+)$", n)]
-    require(not bad_generic, f"Non-6.18 generic directories left in tree: {bad_generic}")
+    bad_generic = [n for n in generic_entries if re.search(r"-(5\.\d+|6\.\d+|7\.(?!3$)\d+)$", n)]
+    require(not bad_generic, f"Non-7.3 generic directories left in tree: {bad_generic}")
+    qualcommbe_dir = targets_dir / "qualcommbe"
+    require("KERNEL_PATCHVER:=7.3" in (qualcommbe_dir / "Makefile").read_text(encoding="utf-8"), "qualcommbe must target KERNEL_PATCHVER:=7.3")
+    require((qualcommbe_dir / "config-7.3").is_file() and not (qualcommbe_dir / "config-6.18").exists(), "qualcommbe must use config-7.3 only")
+    require((qualcommbe_dir / "patches-7.3").is_dir() and not (qualcommbe_dir / "patches-6.18").exists(), "qualcommbe must use patches-7.3 only")
+    require("LINUX_VERSION-7.3 = .6" in (ROOT / "include" / "kernel-7.3").read_text(encoding="utf-8"), "include/kernel-7.3 must track 7.3.6")
+    for p in sorted((qualcommbe_dir / "patches-7.3").glob("*.patch")):
+        require(b"\r\n" not in p.read_bytes(), f"CRLF detected in {p.relative_to(ROOT)}")
 
     qbe_dir = targets_dir / "qualcommbe"
     require(not (qbe_dir / "ipq53xx").exists(), "ipq53xx subtarget must be absent")
@@ -190,6 +197,61 @@ def verify_version_and_docs() -> None:
         read_lf_text(script)
 
 
+def verify_wireless_ppe_offload() -> None:
+    gro_patch = read_lf_text(
+        "package/kernel/mac80211/patches-qualcommbe/subsys/395-01-wifi-mac80211-default-AP-GRO-off-for-PPE.patch"
+    )
+    require("IS_ENABLED(CONFIG_QCOM_PPE)" in gro_patch, "395-01 patch must check IS_ENABLED(CONFIG_QCOM_PPE)")
+    require("CONFIG_QCOM_80211AX_PPE" not in gro_patch, "Dead CONFIG_QCOM_80211AX_PPE symbol must not remain in 395-01 patch")
+
+    ath_qbe = read_lf_text("package/kernel/mac80211/ath-qualcommbe.mk")
+    require("CONFIG_PACKAGE_kmod-qcom-ppe" in ath_qbe, "ath-qualcommbe.mk must track CONFIG_PACKAGE_kmod-qcom-ppe")
+    require("ATH12K_PPE_DS_SUPPORT" in ath_qbe, "ath-qualcommbe.mk must enable ATH12K_PPE_DS_SUPPORT on qualcommbe")
+
+    ath11k_block = re.search(r"define KernelPackage/ath11k\n(.*?)\nendef", ath_qbe, re.S)
+    require(ath11k_block is not None, "Missing KernelPackage/ath11k definition in ath-qualcommbe.mk")
+    require("AUTOLOAD:=$(call AutoProbe,ath11k)" in ath11k_block.group(1), "KernelPackage/ath11k must set AUTOLOAD for modparams emission")
+    require("MODPARAMS.ath11k:=frame_mode=2" in ath11k_block.group(1), "KernelPackage/ath11k must enable frame_mode=2")
+
+    ath11k_ahb_block = re.search(r"define KernelPackage/ath11k-ahb\n(.*?)\nendef", ath_qbe, re.S)
+    require(ath11k_ahb_block is not None, "Missing KernelPackage/ath11k-ahb definition in ath-qualcommbe.mk")
+    require("+TARGET_qualcommbe:kmod-qcom-ppe" in ath11k_ahb_block.group(1), "KernelPackage/ath11k-ahb must depend on kmod-qcom-ppe")
+
+    ath12k_block = re.search(r"define KernelPackage/ath12k\n(.*?)\nendef", ath_qbe, re.S)
+    require(ath12k_block is not None, "Missing KernelPackage/ath12k definition in ath-qualcommbe.mk")
+    require("+TARGET_qualcommbe:kmod-qcom-ppe" in ath12k_block.group(1), "KernelPackage/ath12k must depend on kmod-qcom-ppe")
+
+    mac_sh = read_lf_text("package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh")
+    require("mac80211_reload_firewall()" in mac_sh, "mac80211.sh must define mac80211_reload_firewall()")
+    setup_block = re.search(r"drv_mac80211_setup\(\) \{(.*?)\n\}", mac_sh, re.S)
+    teardown_block = re.search(r"drv_mac80211_teardown\(\) \{(.*?)\n\}", mac_sh, re.S)
+    require(setup_block is not None and "mac80211_reload_firewall" in setup_block.group(1), "drv_mac80211_setup must call mac80211_reload_firewall")
+    require(teardown_block is not None and "mac80211_reload_firewall" in teardown_block.group(1), "drv_mac80211_teardown must call mac80211_reload_firewall")
+
+    fw4_mk = read_lf_text("package/network/config/firewall4/Makefile")
+    require("HW_OFFLOAD_FIXES:=" in fw4_mk and "CONFIG_TARGET_qualcommbe" in fw4_mk, "firewall4 Makefile must enable HW_OFFLOAD_FIXES on qualcommbe")
+    require("./files/20-firewall-net.hotplug $(1)/etc/hotplug.d/net/20-firewall" in fw4_mk, "firewall4 Makefile must install 20-firewall net hotplug")
+
+    hotplug = read_lf_text("package/network/config/firewall4/files/20-firewall-net.hotplug")
+    require('/usr/sbin/fw4 -q reload' in hotplug, "20-firewall-net.hotplug must reload fw4")
+
+    sr_patches = sorted(p.name for p in (ROOT / "package/network/config/firewall4/patches/sr1010").glob("*.patch"))
+    for prefix in ("010-", "020-", "030-", "040-"):
+        matches = [n for n in sr_patches if n.startswith(prefix)]
+        require(len(matches) == 1, f"Expected firewall4 offload patch starting with {prefix}, found {sr_patches}")
+        read_lf_text(f"package/network/config/firewall4/patches/sr1010/{matches[0]}")
+
+    build_sh = read_lf_text("scripts/build-be7000.sh")
+    for token in (
+        "CONFIG_PACKAGE_kmod-qcom-ppe=y",
+        "CONFIG_PACKAGE_kmod-ath11k-ahb=y",
+        "CONFIG_PACKAGE_kmod-ath12k=y",
+        "ath11k frame_mode=2",
+        "20-firewall",
+    ):
+        require(token in build_sh, f"scripts/build-be7000.sh missing PPE/wireless assertion: {token}")
+
+
 def run_posix_shell_tests() -> None:
     if os.name == "nt" or shutil.which("sh") is None or shutil.which("hexdump") is None:
         return
@@ -203,6 +265,8 @@ def run_posix_shell_tests() -> None:
         "target/linux/qualcommbe/ipq95xx/base-files/lib/upgrade/platform.sh",
         "package/boot/uboot-envtools/files/qualcommbe",
         "package/base-files/files/etc/init.d/boot",
+        "package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh",
+        "package/network/config/firewall4/files/20-firewall-net.hotplug",
     ]
     for rel in shell_scripts:
         interpreter = "bash" if rel.endswith(".sh") and rel.startswith("scripts/") else "sh"
@@ -281,11 +345,41 @@ printf '%s\\n%s\\n%s\\n%s\\n' "$BE7000_MAC0" "$BE7000_MAC1" "$BE7000_MAC2" "$BE7
         require((cpufreq_root / "policy1/scaling_governor").read_text().strip() == "performance", "policy1 without schedutil must stay unchanged")
         require((cpufreq_root / "policy0/scaling_max_freq").read_text().strip() == "1488000", "scaling_max_freq must stay untouched")
 
+        mac_text = read_lf_text("package/kernel/mac80211/files/lib/netifd/wireless/mac80211.sh")
+        reload_match = re.search(r"mac80211_reload_firewall\(\) \{.*?\n\}\n", mac_text, re.S)
+        require(reload_match is not None, "Could not extract mac80211_reload_firewall function")
+        reload_body = reload_match.group(0)
+        fw_state = tmp_path / "fw4.state"
+        fw_calls = tmp_path / "fw4.calls"
+        fw_bin = tmp_path / "fw4.sh"
+        fw_init = tmp_path / "firewall.init"
+        fw_bin.write_text(f"#!/bin/sh\necho \"$*\" >> \"{fw_calls}\"\n", encoding="utf-8")
+        fw_init.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fw_bin.chmod(0o755)
+        fw_init.chmod(0o755)
+        patched_body = (
+            reload_body
+            .replace("/var/run/fw4.state", str(fw_state))
+            .replace("/usr/sbin/fw4", str(fw_bin))
+            .replace("/etc/init.d/firewall", str(fw_init))
+        )
+        fw_harness = tmp_path / "fw_reload_harness.sh"
+        fw_harness.write_text(
+            "#!/bin/sh\nset -eu\n" + patched_body + "\nmac80211_reload_firewall\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["sh", str(fw_harness)], check=True)
+        require(not fw_calls.exists(), "mac80211_reload_firewall must skip reload when fw4.state is absent")
+        fw_state.write_text("ready\n", encoding="utf-8")
+        subprocess.run(["sh", str(fw_harness)], check=True)
+        require(fw_calls.read_text(encoding="utf-8").strip() == "-q reload", "mac80211_reload_firewall must invoke fw4 -q reload when ready")
+
 
 def main() -> int:
     verify_scope()
     verify_dts_and_defaults()
     verify_version_and_docs()
+    verify_wireless_ppe_offload()
     run_posix_shell_tests()
     print("All Xiaomi BE7000 OpenWrt tree and configuration checks passed.")
     return 0

@@ -79,8 +79,7 @@ jobs:
     needs: verify
     if: >-
       github.repository == 'lyleee0083/xiaomi-be7000-openwrt' &&
-      github.ref == 'refs/heads/main' &&
-      needs.verify.outputs.release_needed == 'true'
+      (github.event_name == 'pull_request' || (github.ref == 'refs/heads/main' && needs.verify.outputs.release_needed == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     outputs:
@@ -231,7 +230,7 @@ jobs:
           notes="$RUNNER_TEMP/release-notes.md"
           source_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
           printf '%s\n' \
-            "GitHub Actions 已完成小米 BE7000（qualcommbe/ipq95xx，Linux 6.18，Cortex-A73）固件编译与离线校验。真机刷写、首次启动、恢复出厂与射频/性能需另行验收。[构建记录]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
+            "GitHub Actions 已完成小米 BE7000（qualcommbe/ipq95xx，Linux 7.3，Cortex-A73）固件编译与离线校验。真机刷写、首次启动、恢复出厂与射频/性能需另行验收。[构建记录]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
             "" \
             "- 上游基线：[coolsnowwolf/lede@bc7f99dd](https://github.com/coolsnowwolf/lede/commit/bc7f99dd449ac05543d8bbbd42b21ddb33c70cae)" \
             "- 许可声明：[GPL-2.0]($source_url/COPYING) · [LICENSES]($source_url/LICENSES) · [无线固件声明]($source_url/package/firmware/ath-firmware-ddwrt/src/ath12k/QCN9274/hw1.0/Notice.txt)" > "$notes"

@@ -4,8 +4,8 @@
 
 ## 功能
 
-- **单一机型与架构优化**：移除无关平台与其他开发板定义，针对 IPQ9554 四核 Cortex-A73（`-mcpu=cortex-a73`）与 Linux 6.18 构建 `factory.ubi` 和 `sysupgrade.bin` 镜像。
-- **开源网络与无线驱动栈**：采用 `kmod-qcom-ppe` 有线/PPE 卸载、`kmod-ath11k-ahb`（2.4G IPQ9574）与 `kmod-ath12k`（5G PCIe QCN9274），并在 `ipq-wifi-xiaomi_be7000` 中封装两颗射频的专属 `board-2.bin`。
+- **单一机型与架构优化**：移除无关平台与其他开发板定义，针对 IPQ9554 四核 Cortex-A73（`-mcpu=cortex-a73`）与 Linux 7.3（7.3.6）构建 `factory.ubi` 和 `sysupgrade.bin` 镜像。
+- **开源网络与无线驱动栈**：采用 `kmod-qcom-ppe` 有线与无线 PPE 硬件加速、`kmod-ath11k-ahb`（2.4G IPQ9574，默认启用 `frame_mode=2` 以太网封装并通过 `ppe_vp` 虚拟端口双向卸载）与 `kmod-ath12k`（5G PCIe QCN9274，启用原生 `PPE-DS` Direct Switch 硬件环直通卸载；AP 接口默认关闭 GRO 以匹配 PPE MTU 注入），并在 `ipq-wifi-xiaomi_be7000` 中封装两颗射频的专属 `board-2.bin`。
 - **原厂 ART 布局与空槽 MAC 回退**：按小米 BE7000 原厂 `0:art` 分区映射 `wan`（`0x0`）、`lan1`（`0x6`）、`lan2`（`0xc`）、`lan3`（`0x12`）以及 2.4G（`0x100e`、`0x1000`/`0x20000`）和 5G（`0x65010`、`0x65000`/`0x2d000`）。当原厂第四个有线槽位（`0x12`）为全 `FF` 或发生地址冲突时，由 [`be7000-mac.sh`](target/linux/qualcommbe/ipq95xx/base-files/lib/functions/be7000-mac.sh) 确定性派生本地管理单播 MAC。
 - **纯净精简默认配置**：仅包含 Bootstrap 主题中文 LuCI、FW4/nftables、PPPoE、IPv6、Dropbear SSH 与 `zram-swap`，不包含代理、VPN、容器、NAS、FTP、UPnP 或 KMS 等无关插件。
 
@@ -28,30 +28,18 @@ sha256sum -c SHA256SUMS.txt
 
 - **系统与时间**：[`etc/config/system`](target/linux/qualcommbe/ipq95xx/base-files/etc/config/system) 默认主机名为 `BE7000`，时区为 `CST-8`（`Asia/Shanghai`），NTP 客户端仅启用 `cn.pool.ntp.org`（关闭本地 NTP 服务端与 DHCP NTP），ZRAM 使用 `lzo`（4 流）。
 - **指示灯策略**：机身 5 颗 GPIO 指示灯（`white:network`、`amber:network`、`white:system`、`amber:system`、`white:aiot`）在启动完成后默认关闭（`default=0`、`trigger=none`）；4 个 QCA8084 网口绿色链路灯保持 `netdev` 状态指示。
-- **网络、连接跟踪与调频**：[`sysctl-nf-conntrack.conf`](package/kernel/linux/files/sysctl-nf-conntrack.conf) 设置 `net.netfilter.nf_conntrack_max=65535`、`buckets=16384`；[`sysctl-tcp-bbr.conf`](package/kernel/linux/files/sysctl-tcp-bbr.conf) 不强制覆盖防火墙保存的 `tcpcca` 拥塞控制选择；[`etc/init.d/boot`](package/base-files/files/etc/init.d/boot) 在模块加载后对支持 `schedutil` 的数字 CPUFreq policy 自动启用并回读校验 `schedutil`，保留内核原生频率边界。
+- **网络、连接跟踪与调频**：[`sysctl-nf-conntrack.conf`](package/kernel/linux/files/sysctl-nf-conntrack.conf) 设置 `net.netfilter.nf_conntrack_max=65535`、`buckets=16384`；[`sysctl-tcp-bbr.conf`](package/kernel/linux/files/sysctl-tcp-bbr.conf) 不强制覆盖防火墙保存的 `tcpcca` 拥塞控制选择；`firewall4` 默认启用硬件流量卸载并按底层设备逐一探测（兼容 PPPoE/VLAN/macvlan 与无线 AP/WDS 接口，无线接口启停或重载时自动同步刷新 `@ft` 硬件流表设备集合）；[`etc/init.d/boot`](package/base-files/files/etc/init.d/boot) 在模块加载后对支持 `schedutil` 的数字 CPUFreq policy 自动启用并回读校验 `schedutil`，保留内核原生频率边界。
 - **构建配置**：[`configs/xiaomi_be7000_defconfig`](configs/xiaomi_be7000_defconfig) 为唯一维护的精简构建配置种子。
 
 ## 构建与测试
 
-### 离线结构与行为校验
+所有校验与固件编译均仅通过 GitHub Actions 工作流运行：
 
-在任意安装了 Python 3.10+ 的环境中运行离线检查（Linux 环境同时执行 Shell 语法及 MAC/CPUFreq 行为测试）：
+1. 打开 [Build Xiaomi BE7000 OpenWrt](https://github.com/lyleee0083/xiaomi-be7000-openwrt/actions/workflows/build-be7000.yml)。
+2. 点击 **Run workflow**，选择 `main`，然后启动构建。
+3. 构建成功后打开该次运行，在 **Artifacts** 分别下载 `openwrt-xiaomi-be7000-<版本>-squashfs-factory.ubi`、`openwrt-xiaomi-be7000-<版本>-squashfs-sysupgrade.bin` 和 `SHA256SUMS.txt`。
 
-```sh
-python3 tests/verify_be7000_tree.py
-```
-
-### 固件构建（Ubuntu 24.04 x86_64）
-
-准备好 OpenWrt 构建依赖后，执行 [`scripts/build-be7000.sh`](scripts/build-be7000.sh) 更新 feeds、生成并校验 `.config`、编译固件并输出带摘要清单的交付文件：
-
-```sh
-./scripts/feeds update -a
-./scripts/feeds install -a
-./scripts/build-be7000.sh
-```
-
-仅验证配置展开而不执行完整编译时，可运行 `./scripts/build-be7000.sh --prepare-config`。构建产物直接输出到 `release/` 目录。
+`main` 分支推送和以 `main` 为目标的 Pull Request 也会触发[工作流](.github/workflows/build-be7000.yml)。工作流在 `Verify BE7000 OpenWrt` 阶段执行 [`tests/verify_be7000_tree.py`](tests/verify_be7000_tree.py) 离线校验与 [`configs/xiaomi_be7000_defconfig`](configs/xiaomi_be7000_defconfig) 配置展开，并在 `Build BE7000 Firmware Images` 阶段通过 [`scripts/build-be7000.sh`](scripts/build-be7000.sh) 完成固件编译与摘要生成。Actions 产物保留 30 天。
 
 ## 仓库结构
 
@@ -60,7 +48,7 @@ python3 tests/verify_be7000_tree.py
 | [`VERSION`](VERSION) | 统一发布版本号，同步写入固件系统信息、交付文件名与 Release 标签 |
 | [`configs/xiaomi_be7000_defconfig`](configs/xiaomi_be7000_defconfig) | 小米 BE7000 精简固件配置种子 |
 | [`scripts/build-be7000.sh`](scripts/build-be7000.sh) | 配置生成、完整固件构建、版本一致性校验及摘要生成入口 |
-| [`target/linux/qualcommbe/`](target/linux/qualcommbe) | Linux 6.18 内核补丁、[`ipq9554-be7000.dts`](target/linux/qualcommbe/dts/ipq9554-be7000.dts) 设备树、镜像规则与板级默认文件 |
+| [`target/linux/qualcommbe/`](target/linux/qualcommbe) | Linux 7.3 内核补丁、[`ipq9554-be7000.dts`](target/linux/qualcommbe/dts/ipq9554-be7000.dts) 设备树、镜像规则与板级默认文件 |
 | [`package/firmware/ipq-wifi/`](package/firmware/ipq-wifi) | BE7000 的 IPQ9574 与 QCN9274 `board-2.bin` 覆盖包 |
 | [`tests/verify_be7000_tree.py`](tests/verify_be7000_tree.py) | 仓库裁剪范围、设备树、MAC 派生、CPUFreq 与文档一致性检查 |
 | [`.github/workflows/build-be7000.yml`](.github/workflows/build-be7000.yml) | Pull Request 快速门禁检查、固件自动编译与 GitHub Release 发布工作流 |
@@ -73,7 +61,7 @@ python3 tests/verify_be7000_tree.py
 - `openwrt-xiaomi-be7000-<版本>-squashfs-sysupgrade.bin`
 - `SHA256SUMS.txt`
 
-离线测试与 GitHub Actions 构建成功仅代表源码、镜像封装及受控脚本逻辑通过检查；BE7000 实机启动、恢复出厂、射频表现与长期运行稳定性需另行在硬件上验收。
+GitHub Actions 校验与构建成功仅代表源码、镜像封装及受控脚本逻辑通过检查；BE7000 实机启动、恢复出厂、射频表现与长期运行稳定性需另行在硬件上验收。
 
 ## 许可证
 

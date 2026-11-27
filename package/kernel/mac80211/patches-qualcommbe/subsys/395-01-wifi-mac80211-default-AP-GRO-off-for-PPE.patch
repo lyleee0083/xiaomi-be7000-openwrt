@@ -23,7 +23,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +	 * Native PPE ingress accepts MTU-sized frames. Keep AP RX unaggregated
 +	 * by default; the ordinary TC/netfilter receive path still runs.
 +	 */
-+	if (IS_ENABLED(CONFIG_QCOM_80211AX_PPE) && dev &&
++	if (IS_ENABLED(CONFIG_QCOM_PPE) && dev &&
 +	    sdata->vif.type == NL80211_IFTYPE_AP) {
 +		dev->wanted_features &= ~NETIF_F_GRO;
 +		netdev_update_features(dev);

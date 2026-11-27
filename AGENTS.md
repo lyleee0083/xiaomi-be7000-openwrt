@@ -8,6 +8,8 @@
 ## GitHub
 
 - Make fixes directly in the maintained source code, configuration, or build logic that owns the behavior, including in forks. Do not add patch files, build-time source rewrites, or redundant wrappers as substitutes for direct fixes.
+- Start new upstream-based work and upstream updates from the latest commit on the applicable upstream branch. Verify the branch tip remotely and record the upstream repository, branch, and full commit SHA. Use the upstream default branch unless the task specifies another branch or revision.
+- Run all repository builds and compilation exclusively in GitHub Actions; do not build or compile locally. Deliver the verified artifacts from the successful workflow run.
 - Prefer the verified official `gh`. On Windows, resolve the executable without running it and verify its contents with trusted installer evidence or an official release package. Use the verified absolute path and SHA-256. Use `gh api` for operations without a dedicated command. An authorized connector may perform the same read-only operation if the CLI is unavailable or unverified and repair is outside scope. Respect access denials.
 - Every GitHub repository must have an active `Protect main` ruleset for its default branch. Require pull requests and block branch deletion and force pushes. Require status checks that actually run on pull requests targeting the protected branch.
 - Enable and verify `delete_branch_on_merge: true` when creating or configuring a repository. Before merging a pull request, verify this setting in its source repository, including a fork, and report any limit on automatic branch deletion.
@@ -17,11 +19,11 @@
 
 ## Build and Verification
 
-- Target the Xiaomi BE7000 (`xiaomi,be7000`) exclusively on `qualcommbe/ipq95xx` (Linux 6.18, Armv8.0-A `cortex-a73`). Preserve shared OpenWrt build infrastructure, `target/linux/generic` 6.18 support, `ipq9574-common*.dtsi`, and packages required by this board.
-- Use [configs/xiaomi_be7000_defconfig](configs/xiaomi_be7000_defconfig) and [scripts/build-be7000.sh](scripts/build-be7000.sh) as the authoritative configuration and build entry points. Keep the base package set lean (Bootstrap LuCI, FW4/nftables, Qualcomm PPE offload, PPPoE, IPv6, SSH, zram-swap) without proxy, VPN, NAS, UPnP, or KMS bloatware.
+- Target the Xiaomi BE7000 (`xiaomi,be7000`) exclusively on `qualcommbe/ipq95xx` (Linux 7.3, Armv8.0-A `cortex-a73`). Preserve shared OpenWrt build infrastructure, `target/linux/generic` 7.3 support, `ipq9574-common*.dtsi`, and packages required by this board.
+- Maintain [configs/xiaomi_be7000_defconfig](configs/xiaomi_be7000_defconfig) and [scripts/build-be7000.sh](scripts/build-be7000.sh) as the authoritative configuration and GitHub Actions build entry points. Keep the base package set lean (Bootstrap LuCI, FW4/nftables, Qualcomm PPE offload, PPPoE, IPv6, SSH, zram-swap) without proxy, VPN, NAS, UPnP, or KMS bloatware.
 - Preserve Xiaomi BE7000 stock ART (`0:art` / `0:ART`) offsets: wired slots `0x0`, `0x6`, `0xc`, `0x12` (with deterministic locally-administered unicast fallback for blank `FF` or colliding slots), 2.4G IPQ9574 calibration at `0x1000` (`0x20000`) with MAC at `0x100e`, and 5G QCN9274 calibration at `0x65000` (`0x2d000`) with MAC at `0x65010`.
-- Run `python3 tests/verify_be7000_tree.py` for offline tree, DTS, MAC, CPUFreq, and configuration regressions. The `Verify BE7000 OpenWrt` check covers pull requests to `main`.
-- Keep device operations and publication within task authorization, and report offline or CI build verification separately from physical BE7000 boot, factory-reset, RF, and stability acceptance.
+- Run tree, DTS, MAC, CPUFreq, and configuration checks (`tests/verify_be7000_tree.py`), defconfig expansion, and firmware compilation exclusively through the GitHub Actions workflow (`.github/workflows/build-be7000.yml`: `Verify BE7000 OpenWrt` and `Build BE7000 Firmware Images`).
+- Keep device operations and publication within task authorization, and report GitHub Actions verification and build results separately from physical BE7000 boot, factory-reset, RF, and stability acceptance.
 
 ## Versioned deliverables
 

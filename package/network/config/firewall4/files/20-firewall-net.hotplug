@@ -1,0 +1,23 @@
+#!/bin/sh
+
+[ "$DEVTYPE" = "wlan" ] || exit 0
+[ "$ACTION" = "add" -o "$ACTION" = "remove" ] || exit 0
+
+case "$DEVICENAME" in
+	*.sta*) ;;
+	*) exit 0 ;;
+esac
+
+[ -s /var/run/fw4.state ] && [ -x /usr/sbin/fw4 ] || exit 0
+/etc/init.d/firewall enabled 2>/dev/null || exit 0
+
+(
+	if [ "$ACTION" = "add" ]; then
+		i=0
+		while [ "$i" -lt 10 ] && [ ! -d "/sys/class/net/$DEVICENAME/brport" ]; do
+			sleep 1
+			i=$((i + 1))
+		done
+	fi
+	/usr/sbin/fw4 -q reload
+) >/dev/null 2>&1 &

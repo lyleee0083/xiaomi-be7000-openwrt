@@ -44,11 +44,17 @@ require_cfg() {
 require_cfg 'CONFIG_TARGET_qualcommbe=y'
 require_cfg 'CONFIG_TARGET_qualcommbe_ipq95xx=y'
 require_cfg 'CONFIG_TARGET_qualcommbe_ipq95xx_DEVICE_xiaomi_be7000=y'
+require_cfg 'CONFIG_LINUX_7_3=y'
 require_cfg 'CONFIG_CPU_TYPE="cortex-a73"'
 require_cfg 'CONFIG_IMAGEOPT=y'
 require_cfg 'CONFIG_VERSIONOPT=y'
 require_cfg "CONFIG_VERSION_NUMBER=\"${VERSION}\""
 require_cfg "CONFIG_VERSION_CODE=\"${VERSION_CODE}\""
+require_cfg 'CONFIG_PACKAGE_kmod-qcom-ppe=y'
+require_cfg 'CONFIG_PACKAGE_kmod-ath11k=y'
+require_cfg 'CONFIG_PACKAGE_kmod-ath11k-ahb=y'
+require_cfg 'CONFIG_PACKAGE_kmod-ath12k=y'
+require_cfg 'CONFIG_PACKAGE_firewall4=y'
 
 for forbidden in \
   default-settings \
@@ -91,6 +97,8 @@ test -s "$ROOTFS_DIR/lib/firmware/ath11k/IPQ9574/hw1.0/board-2.bin"
 test -s "$ROOTFS_DIR/lib/firmware/ath12k/QCN9274/hw2.0/board-2.bin"
 test -s "$ROOTFS_DIR/etc/config/system"
 test -s "$ROOTFS_DIR/lib/functions/be7000-mac.sh"
+grep -Fxq "ath11k frame_mode=2" "$ROOTFS_DIR/etc/modules.d/ath11k"
+test -s "$ROOTFS_DIR/etc/hotplug.d/net/20-firewall"
 
 BIN_DIR="bin/targets/qualcommbe/ipq95xx"
 FACTORY_SRC="$(find "$BIN_DIR" -maxdepth 1 -type f -name '*xiaomi_be7000-squashfs-factory.ubi' | head -n 1)"
