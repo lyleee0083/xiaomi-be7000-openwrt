@@ -241,6 +241,55 @@ def verify_wireless_ppe_offload() -> None:
         require(len(matches) == 1, f"Expected firewall4 offload patch starting with {prefix}, found {sr_patches}")
         read_lf_text(f"package/network/config/firewall4/patches/sr1010/{matches[0]}")
 
+    libbpf_mk = read_lf_text("package/libs/libbpf/Makefile")
+    require(
+        "ARM64_U128_UAPI_FIX:=" in libbpf_mk
+        and "CONFIG_TARGET_qualcommbe" in libbpf_mk
+        and "ifneq ($(ARM64_U128_UAPI_FIX),)" in libbpf_mk,
+        "libbpf Makefile must enable ARM64_U128_UAPI_FIX on qualcommbe/Linux 7.3 ARM64",
+    )
+    libbpf_u128 = read_lf_text("package/libs/libbpf/patches/sr1010/100-linux-u128-types.patch")
+    require("typedef unsigned __int128 __u128" in libbpf_u128, "libbpf 100-linux-u128-types.patch missing __u128")
+
+    hunk_re = re.compile(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@")
+    for patch_rel in (
+        "package/libs/libbpf/patches/100-bpf_tc_classid.patch",
+        "package/libs/libbpf/patches/sr1010/100-linux-u128-types.patch",
+        *(f"package/network/config/firewall4/patches/sr1010/{n}" for n in sr_patches),
+    ):
+        plines = read_lf_text(patch_rel).splitlines()
+        idx = 0
+        while idx < len(plines):
+            m = hunk_re.match(plines[idx])
+            if not m:
+                idx += 1
+                continue
+            old_exp = int(m.group(1)) if m.group(1) is not None else 1
+            new_exp = int(m.group(2)) if m.group(2) is not None else 1
+            old_act = new_act = 0
+            hunk_start = idx + 1
+            idx += 1
+            while idx < len(plines):
+                line = plines[idx]
+                if hunk_re.match(line) or line.startswith(("diff --git ", "--- ")):
+                    break
+                if old_act == old_exp and new_act == new_exp and (line == "" or line.startswith("-- ")):
+                    break
+                if line.startswith("+"):
+                    new_act += 1
+                elif line.startswith("-"):
+                    old_act += 1
+                elif line.startswith(" ") or line == "":
+                    old_act += 1
+                    new_act += 1
+                elif not line.startswith("\\"):
+                    break
+                idx += 1
+            require(
+                old_act == old_exp and new_act == new_exp,
+                f"Malformed hunk in {patch_rel}:{hunk_start}: expected -{old_exp},+{new_exp}, got -{old_act},+{new_act}",
+            )
+
     build_sh = read_lf_text("scripts/build-be7000.sh")
     for token in (
         "CONFIG_PACKAGE_kmod-qcom-ppe=y",

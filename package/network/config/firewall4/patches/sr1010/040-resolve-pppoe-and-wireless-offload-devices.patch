@@ -8,7 +8,7 @@ to zone networks so bridged AP/WDS interfaces always enter the flowtable.
 
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -435,7 +435,23 @@
+@@ -434,7 +434,23 @@
  		let devtype = (devstatus[devname]?.type == 'macvlan')
  			? 'macvlan' : devstatus[devname]?.devtype;
  
@@ -20,7 +20,7 @@ to zone networks so bridged AP/WDS interfaces always enter the flowtable.
 +
  		switch (devtype) {
 +		case 'pppoe':
-+			let parent = devstatus[devname]?.parent;
++			let parent = devstatus?.[devname]?.parent;
 +
 +			if (parent && parent != devname)
 +				push(devs, ...resolve_lower_devices(devstatus, parent));
@@ -32,7 +32,7 @@ to zone networks so bridged AP/WDS interfaces always enter the flowtable.
  		case 'vlan':
  		case 'bridge':
  		case 'macvlan':
-@@ -555,15 +571,44 @@
+@@ -552,16 +568,44 @@
  
  		let devstatus = null;
  		let devices = null;
@@ -40,8 +40,7 @@ to zone networks so bridged AP/WDS interfaces always enter the flowtable.
  		let bus = ubus.connect();
  
  		if (bus) {
--			devstatus = bus.call("network.device", "status");
-+			devstatus = bus.call("network.device", "status") || {};
+ 			devstatus = bus.call("network.device", "status") || {};
 +			let interfaces = bus.call("network.interface", "dump")?.interface || [];
 +
 +			for (let iface in interfaces) {
@@ -71,7 +70,7 @@ to zone networks so bridged AP/WDS interfaces always enter the flowtable.
 +						continue;
 +
 +					for (let net in to_array(vif?.config?.network))
-+						if ( filter(zone.network, e => !e.invert && e.device == net)[0] )
++						if (filter(zone.network, e => !e.invert && e.device == net)[0])
 +							push(devices ||= [], ...resolve_lower_devices(devstatus, ifname));
 +				}
 +			}
