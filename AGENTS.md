@@ -14,8 +14,10 @@
 - Every GitHub repository must have an active `Protect main` ruleset for its default branch. Require pull requests and block branch deletion and force pushes. Require status checks that actually run on pull requests targeting the protected branch.
 - Enable and verify `delete_branch_on_merge: true` when creating or configuring a repository. Before merging a pull request, verify this setting in its source repository, including a fork, and report any limit on automatic branch deletion.
 - Before writing to a shared branch, verify the current head and check for competing writers. Follow the repository rules for reviews and checks, and verify the remote commit and source branch cleanup after merging.
-- Maintain one H1 in the primary README, with the project name and purpose. Where applicable, keep the H2 order Features, Quick Start, Configuration, Build and Test, Repository Structure, Releases, and License. Use the established language, fenced code blocks with language identifiers, and relative links for repository files.
-- Name and link the upstream repository in the README, and record the source tag or commit when known. Credit imported components in the README or linked third-party notices and preserve applicable license and copyright notices.
+- Use Simplified Chinese for README and GitHub Release titles and bodies, including generated notes, unless directed otherwise. Keep official names and identifiers.
+- Start README with one project-name H1 and an overview, then applicable H2s in order 功能 → 快速开始 → 配置 → 构建与测试 → 仓库结构 → 版本发布 → 许可证.
+- Use `<project> <version>` for Release titles. Follow the summary with applicable H2s in order 主要变更 → 下载与校验 → 安装与升级 → 验证状态.
+- Use tagged code fences, relative README and tag-pinned Release file links. Keep upstream links, known refs, credits, licenses and copyright notices.
 
 ## Build and Verification
 
