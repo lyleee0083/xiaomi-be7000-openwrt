@@ -115,7 +115,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
 +	},
 +};
 +
-+static const struct icc_bulk_data ipq9574_icc_data[] = {static const struct icc_bulk_data ipq9574_icc_data[] = {static const struct icc_bulk_data ipq9574_icc_data[] = {static const struct icc_bulk_data ipq9574_icc_data[] = {
++static const struct icc_bulk_data ipq9574_icc_data[] = {
  	{
  		.name = "ppe",
  		.avg_bw = 0,
