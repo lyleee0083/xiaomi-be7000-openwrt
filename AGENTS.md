@@ -17,8 +17,8 @@ These rules apply to every agent and worker contributing to this repository. Kee
 
 - Fix the maintained source or configuration that owns the behavior. Do not add patch files, build-time source rewrites, or redundant wrappers as substitutes for a direct fix. Keep non-default branches limited to variant files and required metadata. Maintain shared files on the default branch and reuse them across variants.
 - Start upstream updates from the latest commit on the applicable upstream branch. Verify its remote tip and record the repository, branch, and full commit SHA. Preserve source attribution, licenses, and copyright notices.
-- Prefer verified official `gh` for GitHub operations and use `gh api` when there is no dedicated command. Verify the Windows executable path and contents from trusted installer evidence or the official distribution before execution. Respect access denials.
-- Maintain an active `Protect main` ruleset on the default branch. Require pull requests and status checks that run on those PRs, and block deletion and force pushes. Verify the source repository's automatic head-branch deletion setting before merging. Check for competing writers, verify the current head, and confirm the merge commit and branch cleanup afterward.
+- Use verified official `gh` first for GitHub operations and use `gh api` when there is no dedicated command. Verify the Windows executable path and contents from trusted installer evidence or the official distribution before execution. Respect access denials.
+- Maintain an active `Protect main` ruleset on the default branch. Require pull requests and status checks that run on those PRs, and block deletion and force pushes. Enable `delete_branch_on_merge: true` when creating or configuring repositories and verify the source repository's setting before merging. Check for competing writers, verify the current head, and confirm the merge commit and branch cleanup afterward.
 
 ## Build, verification, and delivery
 
