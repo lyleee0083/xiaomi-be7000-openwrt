@@ -1,60 +1,33 @@
-# xiaomi-be7000-openwrt Repository Instructions
+# Agent Instructions
 
-These instructions apply to all agents working in this repository.
+These rules apply to every agent and worker contributing to this repository. Keep this file in English.
 
 ## Scope
 
-- Write repository `AGENTS.md` files entirely in English.
-- Confirm the repository root, target branch, worktree status, and applicable instructions before editing. Keep changes within the authorized task and preserve existing work.
-- Track build source, build configuration and scripts, test and validation code, and essential resources and documentation. Maintained configuration and rule data are source. Keep temporary files in the task directory. Deliver build packages and validation outputs through the project artifact channel when authorized.
+- Read [PROJECT.md](PROJECT.md) and any applicable nested instructions before planning, editing, reviewing, or building. Treat `PROJECT.md` as the source of project-specific constraints. Update it with an authorized change to the project's scope, architecture, platforms, build, or verification.
+- Work in the authorized repository or worktree. Confirm the target branch, current head, and working tree before editing. Preserve existing work. Resolve paths, links, and directory boundaries before writing or deleting. Keep source, tests, and essential documentation in version control, and keep outputs, caches, and task records in their assigned artifact or task directories.
+- Keep delegated work within the same authorization. Assign distinct ownership, pass the applicable rules and acceptance criteria, and leave final verification to the coordinating agent.
 
-## Code simplicity and footprint
+## Code simplicity and interface ergonomics
 
 - Keep all maintained code as simple and lightweight as practical. Prefer direct solutions and existing primitives. Remove unnecessary code, abstractions, dependencies, duplicated work, and resource use. Preserve required behavior, compatibility, and verification. Measure material size, memory, or performance changes when practical.
+- Apply ergonomic principles to every visible interface and interaction. Group related controls, use familiar labels and icons, and give text and controls readable sizes, sufficient contrast, and adequate space. Keep keyboard operation and focus predictable. Show current values, disabled states, and action feedback clearly. Check affected layouts at supported narrow sizes and display scales, and in supported themes. Make repeated actions easy to reach and protect destructive actions against accidental activation.
 
-## GitHub
+## Repository changes
 
-### Repository changes
+- Fix the maintained source or configuration that owns the behavior. Do not add patch files, build-time source rewrites, or redundant wrappers as substitutes for a direct fix. Keep non-default branches limited to variant files and required metadata. Maintain shared files on the default branch and reuse them across variants.
+- Start upstream updates from the latest commit on the applicable upstream branch. Verify its remote tip and record the repository, branch, and full commit SHA. Preserve source attribution, licenses, and copyright notices.
+- Use verified official `gh` first for GitHub operations and use `gh api` when there is no dedicated command. Verify the Windows executable path and contents from trusted installer evidence or the official distribution before execution. Respect access denials.
+- Maintain an active `Protect main` ruleset on the default branch. Require pull requests and status checks that run on those PRs, and block deletion and force pushes. Enable `delete_branch_on_merge: true` when creating or configuring repositories and verify the source repository's setting before merging. Check for competing writers, verify the current head, and confirm the merge commit and branch cleanup afterward.
 
-- Make fixes directly in the maintained source code, configuration, or build logic that owns the behavior, including in forks. Do not add patch files, build-time source rewrites, or redundant wrappers as substitutes for direct fixes.
-- Start new upstream-based work and upstream updates from the latest commit on the applicable upstream branch. Verify the branch tip remotely and record the upstream repository, branch, and full commit SHA. Use the upstream default branch unless the task specifies another branch or revision.
-- Run all repository builds and compilation exclusively in GitHub Actions; do not build or compile locally. Deliver the verified artifacts from the successful workflow run.
-- Keep GitHub Actions on the latest stable Linux runner (`ubuntu-latest`) as the sole build and packaging path. Use a different GitHub Actions runner only when the deliverable cannot be built on `ubuntu-latest`.
+## Build, verification, and delivery
 
-### GitHub CLI
+- Run repository builds and compilation exclusively in GitHub Actions on `ubuntu-latest`. Use a different runner only when the deliverable requires it and document the reason in `PROJECT.md`. Follow the project-specific build, test, and acceptance requirements. Keep CI evidence distinct from physical device or production acceptance.
+- When using PowerShell, maintain Windows PowerShell 5.1 and PowerShell 7 compatibility. Keep native output streams and binary data intact, and check each native command's exit code before using its result.
+- Advance versions according to the project's rules when deliverables change. Verify the version in applicable filenames, packaging, and the application. Record upstream versions and revisions separately. Deliver the verified native files and `SHA256SUMS.txt`. Match published assets by filename and SHA-256 to the verified build outputs and confirm the release tag points to the build commit. Follow the separate authorization for publication and deployment.
 
-- Use official `gh` first for GitHub operations. Resolve PATH candidates without executing them. On Windows also check known locations, including `%ProgramFiles%\GitHub CLI\gh.exe`, and available installer records. Before `--version`, verify the actual file using trusted installer evidence binding its path and contents to the installed package, or compare its bytes with the executable from a verified official release package. Product name, publisher text, version, or expected path alone is insufficient. Invoke the verified absolute path; reuse verification only while that path and its SHA-256 match the verified copy. Report a broken installation separately. If absent and writes are permitted, install a verified official package in a task-local tools directory or an explicitly authorized installation directory. Obtain authorization for any other destination. Verify the installed executable and run `--version`.
-- Use `gh api` for REST or GraphQL operations without a dedicated command. A connector or browser may handle operations the CLI does not support. For the same authorized read-only operation, use an already authorized connector if `gh` provenance cannot be verified within scope, or if `gh` is confirmed missing, broken, or unable to start and installation or repair is outside scope. Leave an unverified executable unexecuted. Never switch channels to bypass an access denial.
+## README and release notes
 
-### Pull requests and merges
-
-- Every GitHub repository must have an active `Protect main` ruleset for its default branch. Require pull requests and block branch deletion and force pushes. Require status checks that actually run on pull requests targeting the protected branch.
-- Enable and verify **Automatically delete head branches** (`delete_branch_on_merge: true`) in every GitHub repository when creating or configuring it. Before merging a pull request, check the setting on the source repository, including the fork for a fork-based pull request. Enable it when authorized, and report any permission or branch protection rule that prevents automatic deletion. Report any other limitation on automatic branch deletion.
-- Before writing to a shared branch, verify the current head and check for competing writers. Follow the repository rules for reviews and checks, and verify the remote commit and source branch cleanup after merging.
-
-### README and Release pages
-
-- Write the primary README and GitHub Release titles and bodies in Simplified Chinese by default, including workflow-generated notes. Follow explicit language requests and keep official names and identifiers. Translate the headings listed below into the document language.
-- Start the README with one project-name H1 and a brief overview. Use applicable H2s in the order Features, Quick Start, Configuration, Build and Test, Repository Structure, Releases, and License. Cover prerequisites, installation and basic usage in Quick Start.
-- Title each Release `<project> <version>` and open with a short summary. Use applicable H2s in the order Main Changes, Downloads and Verification, Installation and Upgrade, and Verification Status. Identify verified assets and `SHA256SUMS.txt`. Distinguish CI from device or production acceptance.
-- Use GitHub Markdown with tagged code fences, relative README file links and tag-pinned Release links to repository files. Verify commands, paths, links and licenses. Omit empty sections and placeholders. Preserve accurate content. Name and link upstreams, record known refs, credit imports and retain license and copyright notices.
-
-## Build and Verification
-
-- Target the Xiaomi BE7000 (`xiaomi,be7000`) exclusively on `qualcommbe/ipq95xx` (Linux 6.18, Armv8.0-A `cortex-a73`). Preserve shared OpenWrt build infrastructure, `target/linux/generic` 6.18 support, `ipq9574-common*.dtsi`, and packages required by this board.
-- Use [configs/xiaomi_be7000_defconfig](configs/xiaomi_be7000_defconfig) and [scripts/build-be7000.sh](scripts/build-be7000.sh) as the authoritative configuration and build entry points. Keep the base package set lean (Bootstrap LuCI, FW4/nftables, Qualcomm PPE offload, PPPoE, IPv6, SSH, zram-swap) without proxy, VPN, NAS, UPnP, or KMS bloatware.
-- Preserve Xiaomi BE7000 stock ART (`0:art` / `0:ART`) offsets: wired slots `0x0`, `0x6`, `0xc`, `0x12` (with deterministic locally-administered unicast fallback for blank `FF` or colliding slots), 2.4G IPQ9574 calibration at `0x1000` (`0x20000`) with MAC at `0x100e`, and 5G QCN9274 calibration at `0x65000` (`0x2d000`) with MAC at `0x65010`.
-- Run `python3 tests/verify_be7000_tree.py` for offline tree, DTS, MAC, CPUFreq, and configuration regressions. The `Verify BE7000 OpenWrt` check covers pull requests to `main`.
-- Keep device operations and publication within task authorization, and report offline or CI build verification separately from physical BE7000 boot, factory-reset, RF, and stability acceptance.
-
-## Versioned deliverables
-
-- [VERSION](VERSION) defines the single release version synchronized across `CONFIG_VERSION_NUMBER`, `/etc/openwrt_release`, `/usr/lib/os-release`, direct output filenames (`openwrt-xiaomi-be7000-<version>-squashfs-factory.ubi` and `openwrt-xiaomi-be7000-<version>-squashfs-sysupgrade.bin`), and the GitHub Release tag (`openwrt-xiaomi-be7000-<version>`).
-- When a change affects a versioned deliverable, advance [VERSION](VERSION) and rebuild the latest authorized repository state. Record upstream component versions and source revisions separately. Verify the embedded version and checksums in the final artifacts.
-- Verify the version at each applicable surface in the actual delivered artifact and refresh its checksums. Build, publication and deployment follow their respective authorization scopes.
-
-## Release asset integrity
-
-- Deliver native usable firmware images directly with `SHA256SUMS.txt`. Publish the same verified build outputs to GitHub Releases with identical filenames and SHA-256 hashes.
-- Match the Release tag to the verified build commit. Check every published asset against the delivery files and checksum manifest. Report missing source, build, or Release evidence.
-- Use the repository's native format and honor the requested packaging format.
+- Use Simplified Chinese for the primary README and release titles and bodies unless requested otherwise. Use translated headings, tagged code fences, relative README links, and tag-pinned release links. Verify paths, commands, links, and license notices.
+- Start the README with one project-name H1 and a short overview. Use applicable H2s in this order: Features, Quick Start, Configuration, Build and Test, Repository Structure, Releases, and License.
+- Title releases `<project> <version>`. Start with a short summary and use applicable H2s in this order: Main Changes, Downloads and Verification, Installation and Upgrade, and Verification Status. Identify the actual assets and checksums and state the verification scope.
