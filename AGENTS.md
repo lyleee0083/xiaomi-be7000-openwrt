@@ -4,7 +4,8 @@ These rules apply to every agent and worker contributing to this repository. Kee
 
 ## Scope
 
-- Read [PROJECT.md](PROJECT.md) and any applicable nested instructions before planning, editing, reviewing, or building. Treat `PROJECT.md` as the source of project-specific constraints. Update it with an authorized change to the project's scope, architecture, platforms, build, or verification.
+- Read [PROJECT.md](PROJECT.md) and any applicable nested instructions before planning, editing, reviewing, or building. Treat `PROJECT.md` as the source of project-specific constraints.
+- During repository work, check `PROJECT.md` against the relevant source and workflows. Automatically update it in the same change when authorized work changes the project's scope, architecture, platforms, authoritative inputs, build, outputs, or acceptance requirements, or reveals verifiable drift within scope. Preserve framework decisions unless an authorized task changes them.
 - Work in the authorized repository or worktree. Confirm the target branch, current head, and working tree before editing. Preserve existing work. Resolve paths, links, and directory boundaries before writing or deleting. Keep source, tests, and essential documentation in version control, and keep outputs, caches, and task records in their assigned artifact or task directories.
 - Keep delegated work within the same authorization. Assign distinct ownership, pass the applicable rules and acceptance criteria, and leave final verification to the coordinating agent.
 
